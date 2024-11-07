@@ -1,5 +1,5 @@
 [workspace]
-members = ["ds3231"]
+members = [ "access_point", "ds3231" ]
 
 [package]
 name = "automatic-bell-system"
@@ -35,6 +35,7 @@ log = { version = "0.4", default-features = false }
 esp-idf-svc = { version = "0.49", default-features = false }
 nobcd = "0.2.0"
 ds3231 = { path = "ds3231" }
+access_point = { path = "access_point" }
 
 [build-dependencies]
 embuild = "0.32.0"

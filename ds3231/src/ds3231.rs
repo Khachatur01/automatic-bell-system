@@ -1,7 +1,10 @@
 mod set_time_error;
 
 use esp_idf_svc::hal::delay::BLOCK;
-use esp_idf_svc::hal::i2c::I2cDriver;
+use esp_idf_svc::hal::gpio::{InputPin, OutputPin};
+use esp_idf_svc::hal::i2c::{I2c, I2cConfig, I2cDriver};
+use esp_idf_svc::hal::i2c::config::Config;
+use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::sys::EspError;
 use nobcd::BcdNumber;
 use crate::byte_offset::ByteOffset;
@@ -16,10 +19,14 @@ pub struct DS3231<'a> {
 }
 
 impl<'a> DS3231<'a> {
-    pub fn new(i2c_driver: I2cDriver<'a>) -> Self {
-        Self {
-            i2c_driver
-        }
+    pub fn new<I2C: I2c>(i2c: impl Peripheral<P = I2C> + 'a,
+                         sda: impl Peripheral<P = impl InputPin + OutputPin> + 'a,
+                         scl: impl Peripheral<P = impl InputPin + OutputPin> + 'a,) -> Result<Self, EspError> {
+
+        let i2c_config: Config = I2cConfig::default();
+        let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config)?;
+
+        Ok(Self { i2c_driver })
     }
 }
 
