@@ -20,6 +20,12 @@ impl<'a> AccessPoint<'a> {
         Ok(Self { wifi })
     }
 
+    pub fn is_started(&self) -> Result<bool, EspError> {
+        let is_started: bool = self.wifi.is_started()?;
+
+        Ok(is_started)
+    }
+
     pub fn start(&mut self) -> Result<(), EspError> {
         self.wifi.start()?;
 

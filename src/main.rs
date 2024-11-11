@@ -1,10 +1,12 @@
 use access_point::access_point::AccessPoint;
-use ds3231::date_time::DateTime;
 use ds3231::ds3231::DS3231;
+use http_server::http_server::HttpServer;
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::{Gpio21, Gpio22};
-use esp_idf_svc::hal::i2c::I2C1;
 use esp_idf_svc::hal::prelude::Peripherals;
+use std::sync::atomic::{AtomicBool, AtomicU8};
+
+static ACCESS_POINT_STATE: AtomicBool = AtomicBool::new(false);
+static FLAG: AtomicU8 = AtomicU8::new(1);
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
@@ -19,26 +21,27 @@ fn main() {
     let mut access_point: AccessPoint = AccessPoint::new(peripherals.modem).unwrap();
     access_point.start().unwrap();
 
-    /* RTC - Real Time Clock. DS3231 is a Real Time Clock */
-    let rtc_i2c: I2C1 = peripherals.i2c1;
-    let rtc_sda: Gpio21 = peripherals.pins.gpio21;
-    let rtc_scl: Gpio22 = peripherals.pins.gpio22;
-    let mut ds3231: DS3231 = DS3231::new(rtc_i2c, rtc_sda, rtc_scl).unwrap();
+    let mut ds3231: DS3231 = DS3231::new(
+        peripherals.i2c1,
+        peripherals.pins.gpio21, /* sda */
+        peripherals.pins.gpio22 /* scl */
+    ).unwrap();
+
+    let mut server: HttpServer = HttpServer::new().unwrap();
 
     loop {
-        if let Ok(datetime) = ds3231.get_date_time() {
-            let DateTime {
-                seconds,
-                minutes,
-                hours,
-                year,
-                month,
-                day,
-            } = datetime;
-
-            println!("{hours}:{minutes}:{seconds} {day}/{month}/{year}");
-        }
-
+        // if let Ok(datetime) = ds3231.get_date_time() {
+        //     let DateTime {
+        //         seconds,
+        //         minutes,
+        //         hours,
+        //         year,
+        //         month,
+        //         day,
+        //     } = datetime;
+        // 
+        //     println!("{hours}:{minutes}:{seconds} {day}/{month}/{year}");
+        // }
         FreeRtos::delay_ms(1000u32);
     }
 }
