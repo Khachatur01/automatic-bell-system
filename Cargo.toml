@@ -1,5 +1,5 @@
 [workspace]
-members = [ "access_point", "ds3231" , "http_server"]
+members = [ "access_point", "ds3231" , "http_server", "sd_card"]
 
 [package]
 name = "automatic-bell-system"
@@ -37,6 +37,7 @@ nobcd = "0.2.0"
 ds3231 = { path = "ds3231" }
 access_point = { path = "access_point" }
 http_server = { path = "http_server" }
+sd_card = { path = "sd_card" }
 
 [build-dependencies]
 embuild = "0.32.0"
