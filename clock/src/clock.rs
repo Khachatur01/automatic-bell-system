@@ -17,7 +17,6 @@ impl<'a, INT: IOPin> Clock<'a, INT> {
     pub fn new(i2c_driver: I2cDriver<'a>, interrupt_pin: INT) -> Result<Self, EspError> {
         let driver: Driver = Ds323x::new_ds3231(i2c_driver);
 
-
         let mut interrupt_pin: PinDriver<INT, Input> = PinDriver::input(interrupt_pin)?;
         interrupt_pin.set_pull(Pull::Up)?;
         interrupt_pin.set_interrupt_type(InterruptType::PosEdge)?;
@@ -25,7 +24,7 @@ impl<'a, INT: IOPin> Clock<'a, INT> {
         Ok(Self { driver, interrupt_pin })
     }
 
-    pub fn interruption_subscribe<F>(&mut self, callback: F) -> Result<(), EspError>
+    pub fn subscribe_alarm_interruption<F>(&mut self, callback: F) -> Result<(), EspError>
     where
         F: FnMut() + Send + 'static {
 

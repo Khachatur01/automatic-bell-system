@@ -32,7 +32,7 @@ fn main() {
 
     let mut clock = Clock::new(i2c_driver, peripherals.pins.gpio13).unwrap();
 
-    clock.interruption_subscribe(|| {
+    clock.subscribe_alarm_interruption(|| {
         
     }).unwrap();
     /* Clock init */
