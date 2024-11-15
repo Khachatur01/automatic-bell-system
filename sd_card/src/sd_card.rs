@@ -23,46 +23,48 @@ impl TimeSource for SdMmcClock {
 }
 
 type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
-type Directory<'a> = embedded_sdmmc::Directory<'a, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+
+type SdResult<Ok> = Result<Ok, Error<sdcard::Error>>;
+
 
 pub struct SDCard<'a> {
     volume_manager: VolumeManager<BlockDevice<'a>, SdMmcClock>
 }
 
 impl<'a> SDCard<'a> {
-    pub fn new<SPI: SpiAnyPins>(spi: impl Peripheral<P = SPI> + 'a,
-                                scl: impl Peripheral<P = impl OutputPin> + 'a,
-                                sdo: impl Peripheral<P = impl OutputPin> + 'a,
-                                sdi: impl Peripheral<P = impl InputPin> + 'a,
-                                cs: impl Peripheral<P = impl OutputPin> + 'a) -> Result<Self, EspError> {
-
-        let driver_config: DriverConfig = DriverConfig::default();
-        let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config)?;
-
-        let mut spi_config: Config = SpiConfig::new();
-        spi_config.duplex = Duplex::Full;
-        let spi_device_driver: SpiDeviceDriver<SpiDriver> = SpiDeviceDriver::new(spi_driver, Some(cs), &spi_config)?;
-
+    pub fn new(spi_device_driver: SpiDeviceDriver<'a, SpiDriver<'a>>) -> Result<Self, EspError> {
         let sdcard: SdCard<SpiDeviceDriver<SpiDriver>, FreeRtos> = SdCard::new(spi_device_driver, FreeRtos);
 
         Ok(Self { volume_manager: VolumeManager::new(sdcard, SdMmcClock) })
     }
 
-    pub fn read_file(&mut self, path: Path) -> Result<String, Error<sdcard::Error>> {
-        let mut directory = self.open_directory(path.absolute_directories);
+    pub fn read_from_file(&mut self, path: &Path) -> SdResult<Vec<u8>> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
 
-        let mut file = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadOnly)?;
-        
+        directory.change_dir(path.directories_path.as_str())?;
+
+        let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadOnly)?;
+
         let mut buffer: Vec<u8> = vec![0; file.length() as usize];
         file.read(buffer.as_mut_slice())?;
 
-        Ok(String::from_utf8_lossy(buffer.as_slice()).to_string())
+        Ok(buffer)
     }
 
-    fn open_directory(&mut self, absolute_directories: Vec<String>) -> Directory<'a> {
-        let mut volume = self.volume_manager.open_volume(VolumeIdx(0))?;
-        let mut root_directory = volume.open_root_dir().unwrap();
+    pub fn write_to_file(&mut self, path: &Path, data_buffer: Vec<u8>) -> SdResult<()> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
 
-        root_directory
+        directory.change_dir(path.directories_path.as_str())?;
+
+        let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadWriteCreate)?;
+
+        file.write(data_buffer.as_slice())?;
+
+        Ok(())
     }
 }

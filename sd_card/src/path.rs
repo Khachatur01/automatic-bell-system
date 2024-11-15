@@ -1,12 +1,11 @@
 mod error;
 
-use std::str::Split;
 use crate::path::error::PathParseError;
-use crate::path::error::PathParseError::{EmptyPath, PathShouldBeAbsolute};
+use crate::path::error::PathParseError::{EmptyPath, PathShouldBeAbsolute, PathShouldEndWithFilename};
 
 pub struct Path {
-    pub(crate) absolute_directories: Vec<String>,
-    pub(crate)filename: String,
+    pub(crate) directories_path: String,
+    pub(crate) filename: String,
 }
 
 impl TryFrom<String> for Path {
@@ -21,12 +20,17 @@ impl TryFrom<String> for Path {
             return Err(PathShouldBeAbsolute);
         }
 
-        let parts: Split<&str> = raw_path.split("/");
+        if raw_path.ends_with("/") {
+            return Err(PathShouldEndWithFilename);
+        }
 
-        /* Skip first empty string. As path is absolute, first element of string will be empty string. */
-        let path: Vec<String> = parts.skip(1).collect();
-        
-
-        todo!()
+        if let Some((directories_path, filename)) = raw_path.rsplit_once("/") {
+            Ok(Self {
+                directories_path: directories_path.to_string(),
+                filename: filename.to_string()
+            })
+        } else {
+            Err(EmptyPath)
+        }
     }
 }

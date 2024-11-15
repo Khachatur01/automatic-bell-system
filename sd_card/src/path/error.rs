@@ -4,7 +4,8 @@ use std::fmt::{Debug, Display, Formatter};
 #[derive(Debug)]
 pub enum PathParseError {
     EmptyPath,
-    PathShouldBeAbsolute
+    PathShouldBeAbsolute,
+    PathShouldEndWithFilename,
 }
 
 impl Display for PathParseError {

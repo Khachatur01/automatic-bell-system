@@ -1,2 +1,2 @@
 pub mod sd_card;
-mod path;
+pub mod path;
