@@ -1,42 +1,48 @@
 use ds323x::interface::I2cInterface;
-use ds323x::{ic, Ds323x};
-use esp_idf_svc::hal::gpio::{IOPin, Input, InterruptType, OutputPin, PinDriver, Pull};
-use esp_idf_svc::hal::i2c::config::Config;
-use esp_idf_svc::hal::i2c::{I2c, I2cConfig, I2cDriver};
-use esp_idf_svc::hal::peripheral::Peripheral;
+use ds323x::{ic, DateTimeAccess, Ds323x, NaiveDateTime};
+use esp_idf_svc::hal::gpio::{IOPin, Input, PinDriver};
+use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
 use esp_idf_svc::sys::EspError;
 
+type Error = ds323x::Error<I2cError, ()>;
 pub type Driver<'a> = Ds323x<I2cInterface<I2cDriver<'a>>, ic::DS3231>;
 
 pub struct Clock<'a, INT: IOPin> {
     driver: Driver<'a>,
-    interrupt_pin: PinDriver<'a, INT, Input>
+    interrupt_pin: Option<PinDriver<'a, INT, Input>>
 }
 
 impl<'a, INT: IOPin> Clock<'a, INT> {
-    pub fn new(i2c_driver: I2cDriver<'a>, interrupt_pin: INT) -> Result<Self, EspError> {
+    pub fn new(i2c_driver: I2cDriver<'a>, interrupt_pin: Option<PinDriver<'a, INT, Input>>) -> Result<Self, EspError> {
         let driver: Driver = Ds323x::new_ds3231(i2c_driver);
 
-        let mut interrupt_pin: PinDriver<INT, Input> = PinDriver::input(interrupt_pin)?;
-        interrupt_pin.set_pull(Pull::Up)?;
-        interrupt_pin.set_interrupt_type(InterruptType::PosEdge)?;
-
         Ok(Self { driver, interrupt_pin })
+    }
+
+    pub fn datetime(&mut self) -> Result<NaiveDateTime, Error> {
+        self.driver.datetime()
     }
 
     pub fn subscribe_alarm_interruption<F>(&mut self, callback: F) -> Result<(), EspError>
     where
         F: FnMut() + Send + 'static {
 
-        unsafe {
-            self.interrupt_pin.subscribe(callback)?;
+        if let Some(interrupt_pin) = self.interrupt_pin.as_mut() {
+            unsafe {
+                interrupt_pin.subscribe(callback)?;
+            }
         }
 
         Ok(())
     }
 
     pub fn enable_interrupt(&mut self) -> Result<(), EspError> {
-        self.interrupt_pin.enable_interrupt()?;
+
+        if let Some(interrupt_pin) = self.interrupt_pin.as_mut() {
+            unsafe {
+                interrupt_pin.enable_interrupt()?;
+            }
+        }
 
         Ok(())
     }
