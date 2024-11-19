@@ -1,14 +1,13 @@
-use std::cell::RefCell;
 use access_point::access_point::AccessPoint;
-use clock::clock::{Clock};
+use clock::clock::Clock;
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::{Gpio25, InterruptType, PinDriver, Pull};
+use esp_idf_svc::hal::gpio::Gpio25;
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::spi::config::{DriverConfig, Duplex};
 use esp_idf_svc::hal::spi::{SpiConfig, SpiDeviceDriver, SpiDriver};
+use display::display::Display;
 use http_server::http_server::HttpServer;
-use sd_card::path::Path;
 use sd_card::sd_card::SDCard;
 
 fn main() {
@@ -37,12 +36,22 @@ fn main() {
     // interrupt_pin.set_interrupt_type(InterruptType::PosEdge).unwrap();
 
     let mut clock: Clock<Gpio25> = Clock::new(i2c_driver, None).unwrap();
-    let datetime = clock.datetime().unwrap();
 
-    clock.subscribe_alarm_interruption(|| {
-        
-    }).unwrap();
+    // clock.subscribe_alarm_interruption(|| {
+    //     
+    // }).unwrap();
     /* Clock init */
+
+    /* Display init */
+    let i2c = peripherals.i2c0;
+    let sda = peripherals.pins.gpio27;
+    let scl = peripherals.pins.gpio26;
+
+    let i2c_config = I2cConfig::default();
+    let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).unwrap();
+
+    let mut display: Display = Display::new(i2c_driver).unwrap();
+    /* Display init */
 
     /* HTTP server init */
     let http_server: HttpServer = HttpServer::new().unwrap();
@@ -73,8 +82,9 @@ fn main() {
     // println!("content: |{content}|");
 
     loop {
-        println!("{}", datetime.timestamp());
-        clock.enable_interrupt().unwrap();
+        display.clear().unwrap();
+        display.display_information(clock.datetime().unwrap(), &access_point.get_ipv4().unwrap()).unwrap();
+        // clock.enable_interrupt().unwrap();
         FreeRtos::delay_ms(1000u32);
     }
 }

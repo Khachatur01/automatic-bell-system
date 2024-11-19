@@ -7,6 +7,7 @@ use esp_idf_svc::wifi::{AccessPointConfiguration, Configuration, EspWifi};
 
 pub struct AccessPoint<'a> {
     wifi: EspWifi<'a>,
+    configuration: AccessPointConfiguration
 }
 
 impl<'a> AccessPoint<'a> {
@@ -15,9 +16,12 @@ impl<'a> AccessPoint<'a> {
         let nvs: EspNvsPartition<NvsDefault> = EspDefaultNvsPartition::take()?;
 
         let mut wifi: EspWifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
-        wifi.set_configuration(&Configuration::AccessPoint(AccessPointConfiguration::default()))?;
+        let mut configuration: AccessPointConfiguration = AccessPointConfiguration::default();
+        configuration.ssid = "AutoBell System".parse().unwrap();
 
-        Ok(Self { wifi })
+        wifi.set_configuration(&Configuration::AccessPoint(configuration.clone()))?;
+
+        Ok(Self { wifi, configuration })
     }
 
     pub fn is_started(&self) -> Result<bool, EspError> {
@@ -42,5 +46,9 @@ impl<'a> AccessPoint<'a> {
         let ipv4: Ipv4Addr = self.wifi.ap_netif().get_ip_info()?.ip;
 
         Ok(ipv4)
+    }
+
+    pub fn get_configuration(&self) -> &AccessPointConfiguration {
+        &self.configuration
     }
 }

@@ -4,8 +4,9 @@ use esp_idf_svc::hal::gpio::{IOPin, Input, PinDriver};
 use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
 use esp_idf_svc::sys::EspError;
 
+
 type Error = ds323x::Error<I2cError, ()>;
-pub type Driver<'a> = Ds323x<I2cInterface<I2cDriver<'a>>, ic::DS3231>;
+type Driver<'a> = Ds323x<I2cInterface<I2cDriver<'a>>, ic::DS3231>;
 
 pub struct Clock<'a, INT: IOPin> {
     driver: Driver<'a>,
