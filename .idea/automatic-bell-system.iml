@@ -6,10 +6,10 @@
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/access_point/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/http_server/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/sd_card/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/clock/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/system/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/display/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/disk/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

@@ -1,11 +1,20 @@
+use crate::path::Path;
 use embedded_sdmmc::{sdcard, Error, Mode, SdCard, TimeSource, Timestamp, VolumeIdx, VolumeManager};
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::{InputPin, OutputPin};
+use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::peripheral::Peripheral;
-use esp_idf_svc::hal::spi::config::{Config, DriverConfig, Duplex};
-use esp_idf_svc::hal::spi::{SpiAnyPins, SpiConfig, SpiDeviceDriver, SpiDriver};
+use esp_idf_svc::hal::spi::{SpiConfig, SpiDeviceDriver, SpiDriver};
+use esp_idf_svc::hal::spi::config::Duplex;
 use esp_idf_svc::sys::EspError;
-use crate::path::Path;
+
+
+type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
+type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+
+type SdResult<Ok> = Result<Ok, Error<sdcard::Error>>;
+
 
 pub struct SdMmcClock;
 
@@ -22,20 +31,16 @@ impl TimeSource for SdMmcClock {
     }
 }
 
-type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
-type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
-type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
-type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
-
-type SdResult<Ok> = Result<Ok, Error<sdcard::Error>>;
-
-
-pub struct SDCard<'a> {
+pub struct Disk<'a> {
     volume_manager: VolumeManager<BlockDevice<'a>, SdMmcClock>
 }
 
-impl<'a> SDCard<'a> {
-    pub fn new(spi_device_driver: SpiDeviceDriver<'a, SpiDriver<'a>>) -> Result<Self, EspError> {
+impl<'a> Disk<'a> {
+    pub fn new<CS: Peripheral<P = impl OutputPin> + 'a>(spi_driver: SpiDriver<'a>, cs: CS) -> Result<Self, EspError> {
+        let mut spi_config = SpiConfig::new();
+        spi_config.duplex = Duplex::Full;
+
+        let spi_device_driver: SpiDeviceDriver<SpiDriver> = SpiDeviceDriver::new(spi_driver, Some(cs), &spi_config)?;
         let sdcard: SdCard<SpiDeviceDriver<SpiDriver>, FreeRtos> = SdCard::new(spi_device_driver, FreeRtos);
 
         Ok(Self { volume_manager: VolumeManager::new(sdcard, SdMmcClock) })

@@ -1,44 +1,64 @@
-use std::fmt;
-use std::fmt::Write;
-use std::net::Ipv4Addr;
 use chrono::NaiveDateTime;
+use display_interface::DisplayError;
+use embedded_graphics::geometry::Point;
+use embedded_graphics::mono_font::ascii::FONT_5X7;
+use embedded_graphics::mono_font::MonoTextStyleBuilder;
+use embedded_graphics::pixelcolor::BinaryColor;
+use embedded_graphics::text::{Baseline, Text};
+use embedded_graphics::Drawable;
 use esp_idf_svc::hal::i2c::I2cDriver;
-use ssd1306::mode::{DisplayConfig, TerminalMode, TerminalModeError};
-use ssd1306::prelude::{DisplaySize128x32, I2CInterface};
+use shared_bus::I2cProxy;
+use ssd1306::mode::{BufferedGraphicsMode, DisplayConfig};
+use ssd1306::prelude::I2CInterface;
 use ssd1306::rotation::DisplayRotation;
+use ssd1306::size::DisplaySize128x64;
 use ssd1306::{I2CDisplayInterface, Ssd1306};
+use std::sync::Mutex;
 
 
-type Driver<'a> = Ssd1306<I2CInterface<I2cDriver<'a>>, DisplaySize128x32, TerminalMode>;
+type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
+type Driver<'a> = Ssd1306<I2CInterface<I2cSharedProxy<'a>>, DisplaySize128x64, BufferedGraphicsMode<DisplaySize128x64>>;
 
 pub struct Display<'a> {
     driver: Driver<'a>
 }
 
 impl<'a> Display<'a> {
-    pub fn new(i2c_driver: I2cDriver<'a>) -> Result<Self, TerminalModeError> {
-        let interface: I2CInterface<I2cDriver> = I2CDisplayInterface::new(i2c_driver);
-
+    pub fn new(i2c_shared_proxy: I2cSharedProxy<'a>) -> Result<Self, DisplayError> {
         let mut display_driver: Driver = Ssd1306::new(
-            interface,
-            DisplaySize128x32,
+            I2CDisplayInterface::new(i2c_shared_proxy),
+            DisplaySize128x64,
             DisplayRotation::Rotate0,
-        ).into_terminal_mode();
+        ).into_buffered_graphics_mode();
 
         display_driver.init()?;
-        display_driver.clear()?;
+        display_driver.clear_buffer();
 
         Ok(Self { driver: display_driver })
     }
 
-    pub fn clear(&mut self) -> Result<(), TerminalModeError> {
-        self.driver.clear()
+    pub fn clear(&mut self) -> () {
+        self.driver.clear_buffer()
     }
 
-    pub fn display_information(&mut self, current_datetime: NaiveDateTime, ipv4: &Ipv4Addr) -> Result<(), fmt::Error> {
-        let ip_address: String = ipv4.to_string();
-        let current_time: String = current_datetime.time().to_string();
+    pub fn display_information(&mut self, local_datetime: NaiveDateTime, next_bell_datetime: NaiveDateTime) -> Result<(), DisplayError> {
+        let local_time: String = local_datetime.format("%d/%m/%Y %I:%M:%S").to_string();
+        let next_bell_time: String = next_bell_datetime.format("%d/%m/%Y %I:%M").to_string();
 
-        self.driver.write_str(&format!("Ip: {ip_address}\n{current_time}"))
+        let text_style = MonoTextStyleBuilder::new()
+            .font(&FONT_5X7)
+            .text_color(BinaryColor::On)
+            .build();
+
+        self.driver.clear_buffer();
+
+        Text::with_baseline(
+            &format!("Next bell\n{next_bell_time}\nLocal time\n{local_time}"),
+            Point::zero(),
+            text_style,
+            Baseline::Top
+        ).draw(&mut self.driver)?;
+
+        self.driver.flush()
     }
 }
