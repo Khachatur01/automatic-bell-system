@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, NaiveDateTime, Utc};
 use display_interface::DisplayError;
 use embedded_graphics::geometry::Point;
 use embedded_graphics::mono_font::ascii::FONT_5X7;
@@ -41,7 +41,7 @@ impl<'a> Display<'a> {
         self.driver.clear_buffer()
     }
 
-    pub fn display_information(&mut self, local_datetime: NaiveDateTime, next_bell_datetime: NaiveDateTime) -> Result<(), DisplayError> {
+    pub fn display_information(&mut self, local_datetime: DateTime<Utc>, next_bell_datetime: DateTime<Utc>) -> Result<(), DisplayError> {
         let local_time: String = local_datetime.format("%d/%m/%Y %I:%M:%S").to_string();
         let next_bell_time: String = next_bell_datetime.format("%d/%m/%Y %I:%M").to_string();
 

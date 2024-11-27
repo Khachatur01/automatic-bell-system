@@ -1,16 +1,17 @@
 use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
+use disk::disk::Disk;
+use disk::path::Path;
 use display::display::Display;
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::Gpio25;
+use esp_idf_svc::hal::gpio::{Gpio25, Input, PinDriver};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
 use shared_bus::BusManagerStd;
-use disk::disk::Disk;
-use disk::path::Path;
+use clock::synchronize_by::SynchronizeBy;
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
@@ -47,11 +48,11 @@ fn main() {
     access_point.start().unwrap();
 
     /* Clock init */
-    let mut clock: Clock<Gpio25> = Clock::new(i2c_bus_manager.acquire_i2c(), None).unwrap();
+    let mut clock: Clock = Clock::new(i2c_bus_manager.acquire_i2c(), SynchronizeBy::<Gpio25>::Delay { seconds: 1 * 60 * 60 }).unwrap();
 
-    clock.subscribe_alarm_interruption(|| {
-
-    }).unwrap();
+    // clock.subscribe_alarm_interruption(|| {
+    //
+    // }).unwrap();
     /* Clock init */
 
     /* Display init */
@@ -64,12 +65,10 @@ fn main() {
     /* HTTP server init */
 
     /* SD Card init */
-
     let mut sd_card: Disk = Disk::new(spi_driver, cs).unwrap();
-    /* SD Card init */
 
     let path = Path::try_from(String::from("/test.txt")).unwrap();
-    
+
     match sd_card.read_from_file(&path) {
         Ok(buffer) => {
             let content = String::from_utf8(buffer).unwrap();
@@ -78,10 +77,28 @@ fn main() {
         }
         Err(_) => {}
     }
+    /* SD Card init */
+
+    // println!("1");
+    // let sd = SdHost::new_with_spi(&Default::default(), SpiDevice::new(spi_driver, cs, None::<Gpio25>, None::<Gpio25>, None::<Gpio25>, None::<bool>));
+    // println!("2");
+    // Fat::mount(Default::default(), sd, "/sdcard").unwrap();
+    // println!("3");
+    // let paths = fs::read_dir("/sdcard").unwrap();
+    // println!("4");
+    //
+    // for path in paths {
+    //     println!("Name: {}", path.unwrap().path().display())
+    // }
+    // println!("5");
 
     loop {
-        display.display_information(clock.datetime().unwrap(), clock.datetime().unwrap()).unwrap();
-        clock.enable_interrupt().unwrap();
+        let datetime = clock.datetime().unwrap();
+
+        println!("{}", datetime);
+
+        display.display_information(datetime, datetime).unwrap();
+        // clock.enable_interrupt().unwrap();
         FreeRtos::delay_ms(1000u32);
     }
 }
