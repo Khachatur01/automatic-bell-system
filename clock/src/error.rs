@@ -4,6 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 pub enum ClockError {
     EspError,
     SynchronizationError,
+    CanNotSubscribeToAlarmInterruption,
     ApiMutexLockError,
     InvalidTimestamp(u64)
 }

@@ -1,21 +1,22 @@
+use std::num::NonZeroU32;
+use crate::error::ClockError;
+use crate::synchronize_by::SynchronizeBy;
 use crate::system_time::SystemTime;
 use chrono::{DateTime, Utc};
 use ds323x::interface::I2cInterface;
-use ds323x::Hours::H24;
 use ds323x::{ic, Alarm1Matching, DateTimeAccess, DayAlarm1, Ds323x};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::{IOPin, Input, PinDriver};
 use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
-use esp_idf_svc::sys::EspError;
 use esp_idf_svc::systime::EspSystemTime;
 use shared_bus::I2cProxy;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use crate::error::ClockError;
-use crate::synchronize_by::SynchronizeBy;
-
+use esp_idf_svc::hal::{delay, task};
+use esp_idf_svc::hal::task::notification;
+use esp_idf_svc::hal::task::notification::{Notification, Notifier};
 
 type Error = ds323x::Error<I2cError, ()>;
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
@@ -32,7 +33,7 @@ pub struct Clock {
 }
 
 impl Clock {
-    pub fn new<INT: IOPin>(i2c_shared_proxy: I2cSharedProxy<'static>, synchronize_by: SynchronizeBy<INT>) -> Result<Self, EspError> {
+    pub fn new<INT: IOPin>(i2c_shared_proxy: I2cSharedProxy<'static>, synchronize_by: SynchronizeBy<INT>) -> Result<Self, ClockError> {
         let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
         let api: Arc<Mutex<Api>> = Arc::new(Mutex::new(
@@ -42,14 +43,30 @@ impl Clock {
             }
         ));
 
+        let _ = Clock::synchronize_time(Arc::clone(&api));
+
         match synchronize_by {
             SynchronizeBy::Delay { seconds } => {
                 let api_clone: Arc<Mutex<Api>> = Arc::clone(&api);
-                Clock::synchronize_by_delay(api_clone, seconds);
+                Clock::synchronize_by_delay(api_clone, seconds)?;
             }
-            SynchronizeBy::Interrupt { pin } => {
+            SynchronizeBy::Interruption { alarm, pin } => {
                 let api_clone: Arc<Mutex<Api>> = Arc::clone(&api);
-                Clock::synchronize_by_interruption(api_clone, pin);
+
+                /* set alarm if alarm is present */
+                if let Some((alarm, alarm_matching)) = alarm {
+                    let alarm: DayAlarm1 = DayAlarm1::from(alarm);
+                    let alarm_matching: Alarm1Matching = Alarm1Matching::from(alarm_matching);
+
+                    api_clone
+                        .lock()
+                        .map_err(|_| ClockError::ApiMutexLockError)?
+                        .rtc_driver
+                        .set_alarm1_day(alarm, alarm_matching)
+                        .map_err(|_| ClockError::EspError)?;
+                }
+
+                Clock::synchronize_by_interruption(api_clone, pin)?;
             }
         }
 
@@ -69,40 +86,45 @@ impl Clock {
             .ok_or(ClockError::InvalidTimestamp(seconds))
     }
 
-    fn synchronize_by_delay(api: Arc<Mutex<Api>>, seconds: u32) -> JoinHandle<()> {
-        thread::spawn(move || {
-            let milliseconds: u32 = seconds * 100;
+    fn synchronize_by_delay(api: Arc<Mutex<Api>>, seconds: u32) -> Result<JoinHandle<()>, ClockError> {
+        let join_handle: JoinHandle<()> = thread::spawn(move || {
+            let milliseconds: u32 = seconds * 1000;
 
             loop {
-                if let Ok(()) = Clock::synchronize_time(Arc::clone(&api)) {
-                    println!("Synchronizing clock...");
-                } else {
-                    todo!(log warning)
-                }
-
                 FreeRtos::delay_ms(milliseconds);
+                let _ = Clock::synchronize_time(Arc::clone(&api));
             }
-        })
+        });
+
+        Ok(join_handle)
     }
 
     fn synchronize_by_interruption<INT: IOPin>(api: Arc<Mutex<Api>>,
-                                               interrupt_pin: PinDriver<'static, INT, Input>) -> JoinHandle<()> {
+                                               mut interrupt_pin: PinDriver<'static, INT, Input>) -> Result<JoinHandle<()>, ClockError> {
 
-        // api.lock().unwrap().rtc_driver.set_alarm1_day(
-        //     DayAlarm1 {
-        //         day: 0,
-        //         hour: H24(0),
-        //         minute: 0,
-        //         second: 0
-        //     },
-        //     Alarm1Matching::MinutesAndSecondsMatch
-        // ).unwrap();
+        let join_handle: JoinHandle<()> = thread::spawn(move || {
+            let notification: Notification = Notification::new();
+            let notifier: Arc<Notifier> = notification.notifier();
 
-        thread::spawn(move || {
+            unsafe {
+                let _ = interrupt_pin
+                    .subscribe(move || {
+                        if let Some(non_zero_u32) = NonZeroU32::new(1) {
+                            let _ = notifier.notify(non_zero_u32);
+                        }
+                    });
+            };
+
             loop {
-                todo!();
+                let _ = interrupt_pin.enable_interrupt();
+
+                if notification.wait(delay::BLOCK).is_some() {
+                    let _ = Clock::synchronize_time(Arc::clone(&api));
+                };
             }
-        })
+        });
+
+        Ok(join_handle)
     }
 
     fn synchronize_time(api: Arc<Mutex<Api>>) -> Result<(), ClockError> {
@@ -114,9 +136,11 @@ impl Clock {
             api.system_time.set_time(
                 Duration::new(timestamp, 0)
             );
+            println!("Clock synchronized.");
 
             Ok(())
         } else {
+            println!("Clock doesn't synchronize.");
             Err(ClockError::SynchronizationError)
         }
     }

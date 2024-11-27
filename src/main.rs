@@ -1,17 +1,17 @@
 use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
+use clock::synchronize_by::SynchronizeBy;
 use disk::disk::Disk;
 use disk::path::Path;
 use display::display::Display;
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::{Gpio25, Input, PinDriver};
+use esp_idf_svc::hal::gpio::{Gpio0, Gpio25, Input, InterruptType, PinDriver, Pull};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
 use shared_bus::BusManagerStd;
-use clock::synchronize_by::SynchronizeBy;
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
@@ -48,11 +48,17 @@ fn main() {
     access_point.start().unwrap();
 
     /* Clock init */
-    let mut clock: Clock = Clock::new(i2c_bus_manager.acquire_i2c(), SynchronizeBy::<Gpio25>::Delay { seconds: 1 * 60 * 60 }).unwrap();
+    // let synchronize_by: SynchronizeBy<Gpio0> = SynchronizeBy::Delay { seconds: 1 * 60 * 60 };
 
-    // clock.subscribe_alarm_interruption(|| {
-    //
-    // }).unwrap();
+    let mut interrupt_pin: PinDriver<Gpio25, Input> = PinDriver::input(peripherals.pins.gpio25).unwrap();
+    interrupt_pin.set_pull(Pull::Up).unwrap();
+    interrupt_pin.set_interrupt_type(InterruptType::PosEdge).unwrap();
+    let synchronize_by: SynchronizeBy<Gpio25> = SynchronizeBy::Interruption {
+        alarm: None,
+        pin: interrupt_pin
+    };
+
+    let mut clock: Clock = Clock::new(i2c_bus_manager.acquire_i2c(), synchronize_by).unwrap();
     /* Clock init */
 
     /* Display init */
@@ -98,7 +104,6 @@ fn main() {
         println!("{}", datetime);
 
         display.display_information(datetime, datetime).unwrap();
-        // clock.enable_interrupt().unwrap();
         FreeRtos::delay_ms(1000u32);
     }
 }
