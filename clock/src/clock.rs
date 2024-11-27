@@ -1,4 +1,3 @@
-use std::num::NonZeroU32;
 use crate::error::ClockError;
 use crate::synchronize_by::SynchronizeBy;
 use crate::system_time::SystemTime;
@@ -8,15 +7,15 @@ use ds323x::{ic, Alarm1Matching, DateTimeAccess, DayAlarm1, Ds323x};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::{IOPin, Input, PinDriver};
 use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
+use esp_idf_svc::hal::task::notification::{Notification, Notifier};
+use esp_idf_svc::hal::delay;
 use esp_idf_svc::systime::EspSystemTime;
 use shared_bus::I2cProxy;
+use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use esp_idf_svc::hal::{delay, task};
-use esp_idf_svc::hal::task::notification;
-use esp_idf_svc::hal::task::notification::{Notification, Notifier};
 
 type Error = ds323x::Error<I2cError, ()>;
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
@@ -33,7 +32,11 @@ pub struct Clock {
 }
 
 impl Clock {
-    pub fn new<INT: IOPin>(i2c_shared_proxy: I2cSharedProxy<'static>, synchronize_by: SynchronizeBy<INT>) -> Result<Self, ClockError> {
+    pub fn new<INT: IOPin, OnSynchronize>(i2c_shared_proxy: I2cSharedProxy<'static>,
+                                          synchronize_by: SynchronizeBy<INT>,
+                                          on_synchronize: OnSynchronize) -> Result<Self, ClockError>
+    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
+
         let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
         let api: Arc<Mutex<Api>> = Arc::new(Mutex::new(
@@ -48,7 +51,7 @@ impl Clock {
         match synchronize_by {
             SynchronizeBy::Delay { seconds } => {
                 let api_clone: Arc<Mutex<Api>> = Arc::clone(&api);
-                Clock::synchronize_by_delay(api_clone, seconds)?;
+                Clock::synchronize_by_delay(api_clone, seconds, on_synchronize)?;
             }
             SynchronizeBy::Interruption { alarm, pin } => {
                 let api_clone: Arc<Mutex<Api>> = Arc::clone(&api);
@@ -66,7 +69,7 @@ impl Clock {
                         .map_err(|_| ClockError::EspError)?;
                 }
 
-                Clock::synchronize_by_interruption(api_clone, pin)?;
+                Clock::synchronize_by_interruption(api_clone, pin, on_synchronize)?;
             }
         }
 
@@ -86,21 +89,28 @@ impl Clock {
             .ok_or(ClockError::InvalidTimestamp(seconds))
     }
 
-    fn synchronize_by_delay(api: Arc<Mutex<Api>>, seconds: u32) -> Result<JoinHandle<()>, ClockError> {
+    fn synchronize_by_delay<OnSynchronize>(api: Arc<Mutex<Api>>,
+                                           seconds: u32,
+                                           on_synchronize: OnSynchronize) -> Result<JoinHandle<()>, ClockError>
+    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
+
         let join_handle: JoinHandle<()> = thread::spawn(move || {
             let milliseconds: u32 = seconds * 1000;
 
             loop {
                 FreeRtos::delay_ms(milliseconds);
-                let _ = Clock::synchronize_time(Arc::clone(&api));
+                let result: Result<(), ClockError> = Clock::synchronize_time(Arc::clone(&api));
+                on_synchronize(result);
             }
         });
 
         Ok(join_handle)
     }
 
-    fn synchronize_by_interruption<INT: IOPin>(api: Arc<Mutex<Api>>,
-                                               mut interrupt_pin: PinDriver<'static, INT, Input>) -> Result<JoinHandle<()>, ClockError> {
+    fn synchronize_by_interruption<INT: IOPin, OnSynchronize>(api: Arc<Mutex<Api>>,
+                                                              mut interrupt_pin: PinDriver<'static, INT, Input>,
+                                                              on_synchronize: OnSynchronize) -> Result<JoinHandle<()>, ClockError>
+    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
 
         let join_handle: JoinHandle<()> = thread::spawn(move || {
             let notification: Notification = Notification::new();
@@ -119,7 +129,8 @@ impl Clock {
                 let _ = interrupt_pin.enable_interrupt();
 
                 if notification.wait(delay::BLOCK).is_some() {
-                    let _ = Clock::synchronize_time(Arc::clone(&api));
+                    let result: Result<(), ClockError> = Clock::synchronize_time(Arc::clone(&api));
+                    on_synchronize(result);
                 };
             }
         });
@@ -136,11 +147,9 @@ impl Clock {
             api.system_time.set_time(
                 Duration::new(timestamp, 0)
             );
-            println!("Clock synchronized.");
 
             Ok(())
         } else {
-            println!("Clock doesn't synchronize.");
             Err(ClockError::SynchronizationError)
         }
     }

@@ -5,7 +5,7 @@ use disk::disk::Disk;
 use disk::path::Path;
 use display::display::Display;
 use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::{Gpio0, Gpio25, Input, InterruptType, PinDriver, Pull};
+use esp_idf_svc::hal::gpio::{Gpio25, Input, InterruptType, PinDriver, Pull};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
@@ -58,11 +58,15 @@ fn main() {
         pin: interrupt_pin
     };
 
-    let mut clock: Clock = Clock::new(i2c_bus_manager.acquire_i2c(), synchronize_by).unwrap();
+    let mut clock: Clock = Clock::new(
+        i2c_bus_manager.acquire_i2c(),
+        synchronize_by,
+        |result| {
+            println!("Synchronizing...")
+        }).unwrap();
     /* Clock init */
 
     /* Display init */
-
     let mut display: Display = Display::new(i2c_bus_manager.acquire_i2c()).unwrap();
     /* Display init */
 
