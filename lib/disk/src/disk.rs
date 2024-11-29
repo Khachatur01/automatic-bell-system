@@ -1,4 +1,3 @@
-use crate::path::Path;
 use embedded_sdmmc::{sdcard, Error, Mode, SdCard, TimeSource, Timestamp, VolumeIdx, VolumeManager};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::OutputPin;
@@ -6,7 +5,7 @@ use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::spi::{SpiConfig, SpiDeviceDriver, SpiDriver};
 use esp_idf_svc::hal::spi::config::Duplex;
 use esp_idf_svc::sys::EspError;
-
+use interface::Path;
 
 type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
 type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;

@@ -1,4 +1,3 @@
-use crate::error::ClockError;
 use crate::synchronize_by::SynchronizeBy;
 use crate::system_time::SystemTime;
 use chrono::{DateTime, Utc};
@@ -16,6 +15,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
+use interface::ClockError;
 
 type Error = ds323x::Error<I2cError, ()>;
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;

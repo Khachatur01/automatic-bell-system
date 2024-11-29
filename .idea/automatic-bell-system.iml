@@ -4,12 +4,14 @@
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/ds3231/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/access_point/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/http_server/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/clock/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/system/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/display/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/disk/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/access_point/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/clock/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/disk/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/display/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/http_server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/trigger/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/lib/interface/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
     <orderEntry type="inheritedJdk" />

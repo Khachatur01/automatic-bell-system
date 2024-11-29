@@ -1,11 +1,11 @@
-mod error;
+use crate::disk::path::error::PathParseError;
+use crate::disk::path::error::PathParseError::{EmptyPath, PathShouldBeAbsolute, PathShouldEndWithFilename};
 
-use crate::path::error::PathParseError;
-use crate::path::error::PathParseError::{EmptyPath, PathShouldBeAbsolute, PathShouldEndWithFilename};
+pub mod error;
 
 pub struct Path {
-    pub(crate) directories_path: String,
-    pub(crate) filename: String,
+    pub directories_path: String,
+    pub filename: String,
 }
 
 impl TryFrom<String> for Path {

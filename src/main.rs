@@ -2,7 +2,6 @@ use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
 use clock::synchronize_by::SynchronizeBy;
 use disk::disk::Disk;
-use disk::path::Path;
 use display::display::Display;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::{Gpio25, Input, InterruptType, PinDriver, Pull};
@@ -12,6 +11,7 @@ use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
 use shared_bus::BusManagerStd;
+use interface::Path;
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
@@ -107,7 +107,7 @@ fn main() {
 
         println!("{}", datetime);
 
-        display.display_information(datetime, datetime).unwrap();
+        // display.display_information(datetime, datetime).unwrap();
         FreeRtos::delay_ms(1000u32);
     }
 }

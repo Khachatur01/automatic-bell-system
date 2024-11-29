@@ -1,5 +1,5 @@
 [workspace]
-members = [ "access_point", "clock" , "display", "http_server", "disk"]
+members = ["lib/access_point", "lib/clock", "lib/display", "lib/http_server", "lib/disk", "lib/trigger", "lib/interface"]
 
 [package]
 name = "automatic-bell-system"
@@ -34,11 +34,13 @@ embassy = ["esp-idf-svc/embassy-sync", "esp-idf-svc/critical-section", "esp-idf-
 esp-idf-svc = { version = "0.49", default-features = false }
 shared-bus = { version = "0.3.1", features = ["std"] }
 
-clock = { path = "clock" }
-display = { path = "display" }
-access_point = { path = "access_point" }
-http_server = { path = "http_server" }
-disk = { path = "disk" }
+clock = { path = "lib/clock" }
+display = { path = "lib/display" }
+access_point = { path = "lib/access_point" }
+http_server = { path = "lib/http_server" }
+disk = { path = "lib/disk" }
+trigger = { path = "lib/trigger" }
+interface = { path = "lib/interface" }
 
 [build-dependencies]
 embuild = "0.32.0"
