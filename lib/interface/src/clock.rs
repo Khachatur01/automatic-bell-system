@@ -4,11 +4,11 @@ use crate::clock::error::ClockError;
 pub mod error;
 
 pub trait ReadClock {
-    fn read(&self) -> Result<DateTime<Utc>, ClockError>;
+    fn get_datetime(&self) -> Result<DateTime<Utc>, ClockError>;
 }
 
 pub trait WriteClock {
-    fn write(&self) -> Result<(), ClockError>;
+    fn set_datetime(&self) -> Result<(), ClockError>;
 }
 
 pub trait ReadWriteClock: ReadClock + WriteClock {}

@@ -1,3 +1,5 @@
+use std::thread;
+use std::time::Duration;
 use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
 use clock::synchronize_by::SynchronizeBy;
@@ -108,6 +110,7 @@ fn main() {
         println!("{}", datetime);
 
         // display.display_information(datetime, datetime).unwrap();
-        FreeRtos::delay_ms(1000u32);
+        // FreeRtos::delay_ms(1000u32);
+        thread::sleep(Duration::from_secs(1));
     }
 }

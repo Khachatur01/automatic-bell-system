@@ -63,7 +63,7 @@ impl Clock {
 
                     api_clone
                         .lock()
-                        .map_err(|_| ClockError::ApiMutexLockError)?
+                        .map_err(|_| ClockError::MutexLockError)?
                         .rtc_driver
                         .set_alarm1_day(alarm, alarm_matching)
                         .map_err(|_| ClockError::EspError)?;
@@ -80,7 +80,7 @@ impl Clock {
         let seconds: u64 = self
             .api
             .lock()
-            .map_err(|_| ClockError::ApiMutexLockError)?
+            .map_err(|_| ClockError::MutexLockError)?
             .system_time
             .get_time()
             .as_secs();
@@ -139,7 +139,7 @@ impl Clock {
     }
 
     fn synchronize_time(api: Arc<Mutex<Api>>) -> Result<(), ClockError> {
-        let mut api: MutexGuard<Api> = api.lock().map_err(|_| ClockError::ApiMutexLockError)?;
+        let mut api: MutexGuard<Api> = api.lock().map_err(|_| ClockError::MutexLockError)?;
 
         if let Ok(datetime) = api.rtc_driver.datetime() {
             let timestamp: u64 = datetime.and_utc().timestamp() as u64;
