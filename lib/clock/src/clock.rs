@@ -10,7 +10,9 @@ use interface::ClockError;
 use shared_bus::I2cProxy;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
+use std::thread::JoinHandle;
 use std::time::Duration;
 
 
@@ -30,6 +32,7 @@ struct Api {
 pub struct Clock {
     api: Arc<Mutex<Api>>,
     alarms: Arc<Mutex<Alarms>>,
+    shutdown: Arc<Mutex<AtomicBool>>,
 }
 
 impl Clock {
@@ -50,9 +53,10 @@ impl Clock {
         let mut this: Self = Self {
             api,
             alarms: Arc::new(Mutex::new(HashMap::new())),
+            shutdown: Arc::new(Mutex::new(AtomicBool::new(false))),
         };
 
-        this.run_alarm_matching(on_synchronize);
+        this.start_alarm_matching(on_synchronize);
 
         Ok(this)
     }
@@ -87,12 +91,13 @@ impl Clock {
         Ok(())
     }
 
-    fn run_alarm_matching<OnSynchronize>(&mut self,
-                                         on_synchronize: OnSynchronize)
+    fn start_alarm_matching<OnSynchronize>(&mut self,
+                                           on_synchronize: OnSynchronize) -> JoinHandle<()>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
 
         let api: Arc<Mutex<Api>> = Arc::clone(&self.api);
         let alarms: Arc<Mutex<Alarms>> = Arc::clone(&self.alarms);
+        let shutdown: Arc<Mutex<AtomicBool>> = Arc::clone(&self.shutdown);
 
         thread::spawn(move || loop {
             if let (Ok(mut api), Ok(alarms)) = (api.lock(), alarms.lock()) {
@@ -114,8 +119,14 @@ impl Clock {
                 }
             }
 
+            if let Ok(shutdown) = shutdown.lock() {
+                if shutdown.load(Ordering::SeqCst) {
+                    break;
+                }
+            }
+
             thread::sleep(Duration::from_secs(1));
-        });
+        })
     }
 
     fn synchronize_datetime(api: &mut Api) -> Result<(), ClockError> {
@@ -129,6 +140,14 @@ impl Clock {
             Ok(())
         } else {
             Err(ClockError::SynchronizationError)
+        }
+    }
+}
+
+impl Drop for Clock {
+    fn drop(&mut self) {
+        if let Ok(shutdown) = self.shutdown.lock() {
+            shutdown.store(true, Ordering::SeqCst);
         }
     }
 }

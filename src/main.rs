@@ -120,9 +120,9 @@ fn main() {
     }).expect("TODO: panic message");
 
     loop {
-        let datetime = clock.get_datetime().unwrap();
-
-        println!("{}", datetime);
+        // let datetime = clock.get_datetime().unwrap();
+        //
+        // println!("{}", datetime);
 
         // display.display_information(datetime, datetime).unwrap();
         thread::sleep(Duration::from_secs(1));
