@@ -1,51 +1,58 @@
-use ds323x::{Alarm1Matching, DayAlarm1, Hours};
+use std::collections::HashSet;
+use std::hash::Hash;
+use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Alarm {
-    /// Day of the month [1-31]
-    pub day: u8,
-    /// Hour [0-23]
-    pub hour: u8,
-    /// Minute [0-59]
-    pub minute: u8,
-    /// Second [0-59]
-    pub second: u8,
+pub enum AlarmMarcher<T: Eq + Hash> {
+    Ignore,
+    Match(HashSet<T>),
+    DoNotMatch(HashSet<T>)
 }
 
-impl From<Alarm> for DayAlarm1 {
-    fn from(alarm: Alarm) -> Self {
-        DayAlarm1 {
-            day: alarm.day,
-            hour: Hours::H24(alarm.hour),
-            minute: alarm.minute,
-            second: alarm.second
+pub struct Alarm {
+    pub year: AlarmMarcher<u16>,
+    pub month: AlarmMarcher<u8>,
+    pub month_day: AlarmMarcher<u8>,
+    pub week_day: AlarmMarcher<Weekday>,
+
+    pub hour: AlarmMarcher<u8>,
+    pub minute: AlarmMarcher<u8>,
+    pub second: AlarmMarcher<u8>,
+}
+
+impl Alarm {
+    pub fn for_minutes<const N: usize>(minutes: [u8; N]) -> Self {
+        Self {
+            year: AlarmMarcher::Ignore,
+            month: AlarmMarcher::Ignore,
+            month_day: AlarmMarcher::Ignore,
+            week_day: AlarmMarcher::Ignore,
+
+            hour: AlarmMarcher::Ignore,
+            minute: AlarmMarcher::Match(HashSet::from(minutes)),
+            second: AlarmMarcher::Ignore,
         }
     }
-}
 
+    pub fn matches(&self, datetime: &DateTime<Utc>) -> bool {
+        Alarm::segment_matches(&self.year, &(datetime.year() as u16)) &&
+        Alarm::segment_matches(&self.month, &(datetime.month() as u8)) &&
+        Alarm::segment_matches(&self.month_day, &(datetime.day() as u8)) &&
+        Alarm::segment_matches(&self.week_day, &datetime.weekday()) &&
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum AlarmMatching {
-    /// Alarm once per second.
-    OncePerSecond,
-    /// Alarm when seconds match.
-    SecondsMatch,
-    /// Alarm when minutes and seconds match.
-    MinutesAndSecondsMatch,
-    /// Alarm when hours, minutes and seconds match.
-    HoursMinutesAndSecondsMatch,
-    /// Alarm when date/weekday, hours, minutes and seconds match.
-    AllMatch,
-}
+        Alarm::segment_matches(&self.hour, &(datetime.hour() as u8)) &&
+        Alarm::segment_matches(&self.minute, &(datetime.minute() as u8)) &&
+        Alarm::segment_matches(&self.second, &(datetime.second() as u8))
+    }
 
-impl From<AlarmMatching> for Alarm1Matching {
-    fn from(alarm_matching: AlarmMatching) -> Self {
-        match alarm_matching {
-            AlarmMatching::OncePerSecond => Alarm1Matching::OncePerSecond,
-            AlarmMatching::SecondsMatch => Alarm1Matching::SecondsMatch,
-            AlarmMatching::MinutesAndSecondsMatch => Alarm1Matching::MinutesAndSecondsMatch,
-            AlarmMatching::HoursMinutesAndSecondsMatch => Alarm1Matching::HoursMinutesAndSecondsMatch,
-            AlarmMatching::AllMatch => Alarm1Matching::AllMatch,
+    fn segment_matches<T: Eq + Hash>(alarm_matcher: &AlarmMarcher<T>, segment: &T) -> bool {
+        match alarm_matcher {
+            AlarmMarcher::Ignore => true,
+            AlarmMarcher::Match(match_set) => {
+                match_set.contains(segment)
+            }
+            AlarmMarcher::DoNotMatch(do_not_match_set) => {
+                !do_not_match_set.contains(segment)
+            }
         }
     }
 }

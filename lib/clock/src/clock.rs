@@ -1,25 +1,25 @@
-use crate::synchronize_by::SynchronizeBy;
+use crate::alarm::Alarm;
 use crate::system_time::SystemTime;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Timelike, Utc};
 use ds323x::interface::I2cInterface;
-use ds323x::{ic, Alarm1Matching, DateTimeAccess, DayAlarm1, Ds323x};
-use esp_idf_svc::hal::delay::FreeRtos;
-use esp_idf_svc::hal::gpio::{IOPin, Input, PinDriver};
+use ds323x::{ic, DateTimeAccess, Ds323x};
 use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
-use esp_idf_svc::hal::task::notification::{Notification, Notifier};
-use esp_idf_svc::hal::delay;
 use esp_idf_svc::systime::EspSystemTime;
-use shared_bus::I2cProxy;
-use std::num::NonZeroU32;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::thread;
-use std::thread::JoinHandle;
-use std::time::Duration;
+use interface::clock::ReadClock;
 use interface::ClockError;
+use shared_bus::I2cProxy;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
+
 
 type Error = ds323x::Error<I2cError, ()>;
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
 type Driver<'a> = Ds323x<I2cInterface<I2cSharedProxy<'a>>, ic::DS3231>;
+
+type Callback = dyn Fn(DateTime<Utc>) + Send + 'static;
+type Alarms = HashMap<String, (Alarm, Box<Callback>)>;
 
 
 struct Api {
@@ -28,119 +28,97 @@ struct Api {
 }
 
 pub struct Clock {
-    api: Arc<Mutex<Api>>
+    api: Arc<Mutex<Api>>,
+    alarms: Arc<Mutex<Alarms>>,
 }
 
 impl Clock {
-    pub fn new<INT: IOPin, OnSynchronize>(i2c_shared_proxy: I2cSharedProxy<'static>,
-                                          synchronize_by: SynchronizeBy<INT>,
-                                          on_synchronize: OnSynchronize) -> Result<Self, ClockError>
+    pub fn new<OnSynchronize>(i2c_shared_proxy: I2cSharedProxy<'static>,
+                              on_synchronize: OnSynchronize) -> Result<Self, ClockError>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
 
         let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
-        let api: Arc<Mutex<Api>> = Arc::new(Mutex::new(
-            Api {
-                rtc_driver: driver,
-                system_time: EspSystemTime
-            }
-        ));
+        let mut api = Api {
+            rtc_driver: driver,
+            system_time: EspSystemTime,
+        };
 
-        let _ = Clock::synchronize_time(Arc::clone(&api));
+        let _ = Clock::synchronize_datetime(&mut api);
 
-        match synchronize_by {
-            SynchronizeBy::Delay { seconds } => {
-                let api_clone: Arc<Mutex<Api>> = Arc::clone(&api);
-                Clock::synchronize_by_delay(api_clone, seconds, on_synchronize)?;
-            }
-            SynchronizeBy::Interruption { alarm, pin } => {
-                let api_clone: Arc<Mutex<Api>> = Arc::clone(&api);
+        let mut api: Arc<Mutex<Api>> = Arc::new(Mutex::new(api));
+        let mut this: Self = Self {
+            api,
+            alarms: Arc::new(Mutex::new(HashMap::new())),
+        };
 
-                /* set alarm if alarm is present */
-                if let Some((alarm, alarm_matching)) = alarm {
-                    let alarm: DayAlarm1 = DayAlarm1::from(alarm);
-                    let alarm_matching: Alarm1Matching = Alarm1Matching::from(alarm_matching);
+        this.run_alarm_matching(on_synchronize);
 
-                    api_clone
-                        .lock()
-                        .map_err(|_| ClockError::MutexLockError)?
-                        .rtc_driver
-                        .set_alarm1_day(alarm, alarm_matching)
-                        .map_err(|_| ClockError::EspError)?;
-                }
-
-                Clock::synchronize_by_interruption(api_clone, pin, on_synchronize)?;
-            }
-        }
-
-        Ok(Self { api })
+        Ok(this)
     }
 
-    pub fn datetime(&self) -> Result<DateTime<Utc>, ClockError> {
-        let seconds: u64 = self
-            .api
+    pub fn add_alarm(&mut self, id: String, alarm: Alarm, callback: fn(DateTime<Utc>)) -> Result<(), ClockError> {
+        let _ = self
+            .alarms
             .lock()
             .map_err(|_| ClockError::MutexLockError)?
-            .system_time
-            .get_time()
-            .as_secs();
+            .insert(id, (alarm, Box::new(callback)));
 
-        DateTime::from_timestamp(seconds as i64, 0)
-            .ok_or(ClockError::InvalidTimestamp(seconds))
+        Ok(())
     }
 
-    fn synchronize_by_delay<OnSynchronize>(api: Arc<Mutex<Api>>,
-                                           seconds: u32,
-                                           on_synchronize: OnSynchronize) -> Result<JoinHandle<()>, ClockError>
-    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
+    pub fn remove_alarm(&mut self, id: String) -> Result<(), ClockError> {
+        let _ = self
+            .alarms
+            .lock()
+            .map_err(|_| ClockError::MutexLockError)?
+            .remove(&id);
 
-        let join_handle: JoinHandle<()> = thread::spawn(move || {
-            let milliseconds: u32 = seconds * 1000;
-
-            loop {
-                FreeRtos::delay_ms(milliseconds);
-                let result: Result<(), ClockError> = Clock::synchronize_time(Arc::clone(&api));
-                on_synchronize(result);
-            }
-        });
-
-        Ok(join_handle)
+        Ok(())
     }
 
-    fn synchronize_by_interruption<INT: IOPin, OnSynchronize>(api: Arc<Mutex<Api>>,
-                                                              mut interrupt_pin: PinDriver<'static, INT, Input>,
-                                                              on_synchronize: OnSynchronize) -> Result<JoinHandle<()>, ClockError>
+    pub fn clear_all_alarms(&mut self) -> Result<(), ClockError> {
+        self
+            .alarms
+            .lock()
+            .map_err(|_| ClockError::MutexLockError)?
+            .clear();
+
+        Ok(())
+    }
+
+    fn run_alarm_matching<OnSynchronize>(&mut self,
+                                         on_synchronize: OnSynchronize)
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
 
-        let join_handle: JoinHandle<()> = thread::spawn(move || {
-            let notification: Notification = Notification::new();
-            let notifier: Arc<Notifier> = notification.notifier();
+        let api: Arc<Mutex<Api>> = Arc::clone(&self.api);
+        let alarms: Arc<Mutex<Alarms>> = Arc::clone(&self.alarms);
 
-            unsafe {
-                let _ = interrupt_pin
-                    .subscribe(move || {
-                        if let Some(non_zero_u32) = NonZeroU32::new(1) {
-                            let _ = notifier.notify(non_zero_u32);
+        thread::spawn(move || loop {
+            if let (Ok(mut api), Ok(alarms)) = (api.lock(), alarms.lock()) {
+                let seconds: u64 = api.system_time.get_time().as_secs();
+                let datetime: Option<DateTime<Utc>> = DateTime::from_timestamp(seconds as i64, 0);
+
+                if let Some(datetime) = datetime {
+                    alarms.values().for_each(|(alarm, callback)| {
+                        if alarm.matches(&datetime) {
+                            callback(datetime)
                         }
                     });
-            };
 
-            loop {
-                let _ = interrupt_pin.enable_interrupt();
-
-                if notification.wait(delay::BLOCK).is_some() {
-                    let result: Result<(), ClockError> = Clock::synchronize_time(Arc::clone(&api));
-                    on_synchronize(result);
-                };
+                    /* synchronize datetime every hour */
+                    if datetime.minute() == 0 {
+                        let result: Result<(), ClockError> = Clock::synchronize_datetime(&mut *api);
+                        on_synchronize(result);
+                    }
+                }
             }
-        });
 
-        Ok(join_handle)
+            thread::sleep(Duration::from_secs(1));
+        });
     }
 
-    fn synchronize_time(api: Arc<Mutex<Api>>) -> Result<(), ClockError> {
-        let mut api: MutexGuard<Api> = api.lock().map_err(|_| ClockError::MutexLockError)?;
-
+    fn synchronize_datetime(api: &mut Api) -> Result<(), ClockError> {
         if let Ok(datetime) = api.rtc_driver.datetime() {
             let timestamp: u64 = datetime.and_utc().timestamp() as u64;
 
@@ -152,5 +130,21 @@ impl Clock {
         } else {
             Err(ClockError::SynchronizationError)
         }
+    }
+}
+
+
+impl ReadClock for Clock {
+    fn get_datetime(&self) -> Result<DateTime<Utc>, ClockError> {
+        let seconds: u64 = self
+            .api
+            .lock()
+            .map_err(|_| ClockError::MutexLockError)?
+            .system_time
+            .get_time()
+            .as_secs();
+
+        DateTime::from_timestamp(seconds as i64, 0)
+            .ok_or(ClockError::InvalidTimestamp(seconds))
     }
 }
