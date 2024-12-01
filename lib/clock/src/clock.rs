@@ -112,7 +112,7 @@ impl Clock {
                     });
 
                     /* synchronize datetime every hour */
-                    if datetime.minute() == 0 {
+                    if datetime.minute() == 0 && datetime.second() == 0 {
                         let result: Result<(), ClockError> = Clock::synchronize_datetime(&mut *api);
                         on_synchronize(result);
                     }

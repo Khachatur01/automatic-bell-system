@@ -4,7 +4,7 @@ use crate::disk::path::error::PathParseError::{EmptyPath, PathShouldBeAbsolute, 
 pub mod error;
 
 pub struct Path {
-    pub directories_path: String,
+    pub directories_path: Vec<String>,
     pub filename: String,
 }
 
@@ -26,7 +26,7 @@ impl TryFrom<String> for Path {
 
         if let Some((directories_path, filename)) = raw_path.rsplit_once("/") {
             Ok(Self {
-                directories_path: directories_path.to_string(),
+                directories_path: directories_path.split("/").map(str::to_string).collect(),
                 filename: filename.to_string()
             })
         } else {

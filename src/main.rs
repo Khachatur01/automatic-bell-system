@@ -1,19 +1,21 @@
+mod web_interface;
+
+use crate::web_interface::run_web_interface;
 use access_point::access_point::AccessPoint;
-use clock::alarm::{Alarm, AlarmMarcher};
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use esp_idf_svc::hal::gpio::{Gpio25, Input, InterruptType, PinDriver, Pull};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
+use interface::clock::ReadClock;
 use interface::Path;
 use shared_bus::BusManagerStd;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
-use interface::clock::ReadClock;
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
@@ -62,22 +64,22 @@ fn main() {
     /* Display init */
 
     /* HTTP server init */
-    let http_server: HttpServer = HttpServer::new().unwrap();
+    let mut http_server: HttpServer = HttpServer::new().unwrap();
     /* HTTP server init */
 
     /* SD Card init */
-    let mut sd_card: Disk = Disk::new(spi_driver, cs).unwrap();
+    let disk: Disk = Disk::new(spi_driver, cs).unwrap();
 
-    let path = Path::try_from(String::from("/test.txt")).unwrap();
+    // let path = Path::try_from(String::from("/test.txt")).unwrap();
 
-    match sd_card.read_from_file(&path) {
-        Ok(buffer) => {
-            let content = String::from_utf8(buffer).unwrap();
-
-            println!("content: |{content}|");
-        }
-        Err(_) => {}
-    }
+    // match disk.read_from_file(&path) {
+    //     Ok(buffer) => {
+    //         let content = String::from_utf8(buffer).unwrap();
+    //
+    //         println!("content: |{content}|");
+    //     }
+    //     Err(_) => {}
+    // }
     /* SD Card init */
 
     // println!("1");
@@ -93,31 +95,33 @@ fn main() {
     // }
     // println!("5");
 
-    clock.add_alarm("alarm1".parse().unwrap(), Alarm {
-        year: AlarmMarcher::Ignore,
-        month: AlarmMarcher::Ignore,
-        month_day: AlarmMarcher::Ignore,
-        week_day: AlarmMarcher::Ignore,
+    // clock.add_alarm("alarm1".parse().unwrap(), Alarm {
+    //     year: AlarmMarcher::Ignore,
+    //     month: AlarmMarcher::Ignore,
+    //     month_day: AlarmMarcher::Ignore,
+    //     week_day: AlarmMarcher::Ignore,
+    //
+    //     hour: AlarmMarcher::Ignore,
+    //     minute: AlarmMarcher::Ignore,
+    //     second: AlarmMarcher::Match((0..60).filter(|n| n % 2 != 0).collect()),
+    // }, |datetime| {
+    //     println!("Alarm 1 {datetime} ...")
+    // }).expect("TODO: panic message");
+    //
+    // clock.add_alarm("alarm2".parse().unwrap(), Alarm {
+    //     year: AlarmMarcher::Ignore,
+    //     month: AlarmMarcher::Ignore,
+    //     month_day: AlarmMarcher::Ignore,
+    //     week_day: AlarmMarcher::Ignore,
+    //
+    //     hour: AlarmMarcher::Ignore,
+    //     minute: AlarmMarcher::Ignore,
+    //     second: AlarmMarcher::Match((0..60).collect()),
+    // }, |datetime| {
+    //     println!("Alarm 2 {datetime} ...")
+    // }).expect("TODO: panic message");
 
-        hour: AlarmMarcher::Ignore,
-        minute: AlarmMarcher::Ignore,
-        second: AlarmMarcher::Match((0..60).filter(|n| n % 2 != 0).collect()),
-    }, |datetime| {
-        println!("Alarm 1 {datetime} ...")
-    }).expect("TODO: panic message");
-
-    clock.add_alarm("alarm2".parse().unwrap(), Alarm {
-        year: AlarmMarcher::Ignore,
-        month: AlarmMarcher::Ignore,
-        month_day: AlarmMarcher::Ignore,
-        week_day: AlarmMarcher::Ignore,
-
-        hour: AlarmMarcher::Ignore,
-        minute: AlarmMarcher::Ignore,
-        second: AlarmMarcher::Match((0..60).collect()),
-    }, |datetime| {
-        println!("Alarm 2 {datetime} ...")
-    }).expect("TODO: panic message");
+    run_web_interface(&mut http_server, Arc::new(Mutex::new(disk)));
 
     loop {
         // let datetime = clock.get_datetime().unwrap();

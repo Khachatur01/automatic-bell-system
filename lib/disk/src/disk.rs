@@ -49,7 +49,9 @@ impl<'a> Disk<'a> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
-        directory.change_dir(path.directories_path.as_str())?;
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
 
         let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadOnly)?;
 
@@ -63,7 +65,9 @@ impl<'a> Disk<'a> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
-        directory.change_dir(path.directories_path.as_str())?;
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
 
         let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadWriteCreate)?;
 
