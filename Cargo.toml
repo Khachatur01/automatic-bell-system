@@ -1,5 +1,5 @@
 [workspace]
-members = ["lib/access_point", "lib/clock", "lib/display", "lib/http_server", "lib/disk", "lib/trigger", "lib/interface"]
+members = ["lib/access_point", "lib/clock", "lib/display", "lib/http_server", "lib/disk", "lib/interface"]
 
 [package]
 name = "automatic-bell-system"
@@ -39,7 +39,6 @@ display = { path = "lib/display" }
 access_point = { path = "lib/access_point" }
 http_server = { path = "lib/http_server" }
 disk = { path = "lib/disk" }
-trigger = { path = "lib/trigger" }
 interface = { path = "lib/interface" }
 
 [build-dependencies]

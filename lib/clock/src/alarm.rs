@@ -20,19 +20,6 @@ pub struct Alarm {
 }
 
 impl Alarm {
-    pub fn for_minutes<const N: usize>(minutes: [u8; N]) -> Self {
-        Self {
-            year: AlarmMarcher::Ignore,
-            month: AlarmMarcher::Ignore,
-            month_day: AlarmMarcher::Ignore,
-            week_day: AlarmMarcher::Ignore,
-
-            hour: AlarmMarcher::Ignore,
-            minute: AlarmMarcher::Match(HashSet::from(minutes)),
-            second: AlarmMarcher::Ignore,
-        }
-    }
-
     pub fn matches(&self, datetime: &DateTime<Utc>) -> bool {
         Alarm::segment_matches(&self.year, &(datetime.year() as u16)) &&
         Alarm::segment_matches(&self.month, &(datetime.month() as u8)) &&

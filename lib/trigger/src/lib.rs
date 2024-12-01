@@ -1,2 +1,0 @@
-mod trigger;
-mod alarm;
