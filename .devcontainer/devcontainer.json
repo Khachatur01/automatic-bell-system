@@ -2,5 +2,10 @@
   image: "espressif/idf-rust:esp32_latest",
   runArgs: ["--device=/dev/ttyUSB0"],
   workspaceFolder: "/workspaces/${localWorkspaceFolderBasename}",
-  onCreateCommand: "git config --global --add safe.directory /workspaces/automatic-bell-system"
+  onCreateCommand: "git config --global --add safe.directory /workspaces/automatic-bell-system",
+  customizations: {
+    "jetbrains" : {
+      "backend" : "RustRover",
+    },
+  }
 }

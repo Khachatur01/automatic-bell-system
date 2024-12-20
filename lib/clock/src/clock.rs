@@ -16,12 +16,14 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 
+pub type AlarmId = String;
+
 type Error = ds323x::Error<I2cError, ()>;
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
 type Driver<'a> = Ds323x<I2cInterface<I2cSharedProxy<'a>>, ic::DS3231>;
 
-type Callback = dyn Fn(DateTime<Utc>) + Send + 'static;
-type Alarms = HashMap<String, (Alarm, Box<Callback>)>;
+type Callback = dyn Fn(&AlarmId, &DateTime<Utc>) + Send + 'static;
+type Alarms = HashMap<AlarmId, (Alarm, Box<Callback>)>;
 
 
 struct Api {
@@ -61,7 +63,7 @@ impl Clock {
         Ok(this)
     }
 
-    pub fn add_alarm(&mut self, id: String, alarm: Alarm, callback: fn(DateTime<Utc>)) -> Result<(), ClockError> {
+    pub fn add_alarm(&mut self, id: AlarmId, alarm: Alarm, callback: fn(&AlarmId, &DateTime<Utc>)) -> Result<(), ClockError> {
         let _ = self
             .alarms
             .lock()
@@ -71,7 +73,7 @@ impl Clock {
         Ok(())
     }
 
-    pub fn remove_alarm(&mut self, id: String) -> Result<(), ClockError> {
+    pub fn remove_alarm(&mut self, id: AlarmId) -> Result<(), ClockError> {
         let _ = self
             .alarms
             .lock()
@@ -105,9 +107,9 @@ impl Clock {
                 let datetime: Option<DateTime<Utc>> = DateTime::from_timestamp(seconds as i64, 0);
 
                 if let Some(datetime) = datetime {
-                    alarms.values().for_each(|(alarm, callback)| {
+                    alarms.iter().for_each(|(id, (alarm, callback))| {
                         if alarm.matches(&datetime) {
-                            callback(datetime)
+                            callback(id, &datetime)
                         }
                     });
 

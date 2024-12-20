@@ -1,6 +1,6 @@
 mod web_interface;
+mod rest_interface;
 
-use crate::web_interface::run_web_interface;
 use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
 use disk::disk::Disk;
@@ -11,7 +11,6 @@ use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
 use interface::clock::ReadClock;
-use interface::Path;
 use shared_bus::BusManagerStd;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -121,7 +120,8 @@ fn main() {
     //     println!("Alarm 2 {datetime} ...")
     // }).expect("TODO: panic message");
 
-    run_web_interface(&mut http_server, Arc::new(Mutex::new(disk)));
+    web_interface::serve(&mut http_server, Arc::new(Mutex::new(disk)));
+    rest_interface::serve(&mut http_server);
 
     loop {
         // let datetime = clock.get_datetime().unwrap();

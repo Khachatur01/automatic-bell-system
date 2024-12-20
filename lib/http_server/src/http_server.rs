@@ -30,12 +30,10 @@ impl<'a> HttpServer<'a> {
         F: Fn(HttpRequest) -> HttpResponse + Send + 'static,
     {
         self.server.fn_handler(uri, method, move |mut esp_http_request| -> Result<(), EspIOError> {
-            let content_length: usize =
-                if let Some(content_length) = esp_http_request.header("Content-Length") {
-                    content_length.parse().unwrap_or(0)
-                } else {
-                    0
-                };
+            let content_length: usize = esp_http_request
+                .header("Content-Length")
+                .and_then(|content_length| content_length.parse().ok())
+                .unwrap_or(0);
 
             let mut buffer: Vec<u8> = vec![0; content_length];
             esp_http_request.read(buffer.as_mut_slice())?;
@@ -47,7 +45,11 @@ impl<'a> HttpServer<'a> {
 
             let mut response: HttpResponse = handler_function(request);
 
-            let mut esp_http_response = esp_http_request.into_status_response(response.status)?;
+            let status: u16 = response.status;
+            let message: Option<&str> = response.message.as_deref();
+            let headers: [(&str, &str); 0] = [];
+
+            let mut esp_http_response = esp_http_request.into_response(status, message, &headers)?;
             esp_http_response.write_all(response.data.as_slice())?;
 
             Ok(())
