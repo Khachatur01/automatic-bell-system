@@ -8,7 +8,7 @@ pub trait ReadClock {
 }
 
 pub trait WriteClock {
-    fn set_datetime(&self) -> Result<(), ClockError>;
+    fn set_datetime(&mut self, datetime: DateTime<Utc>) -> Result<(), ClockError>;
 }
 
 pub trait ReadWriteClock: ReadClock + WriteClock {}

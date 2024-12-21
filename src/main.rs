@@ -1,6 +1,8 @@
-mod web_interface;
+mod schedule_system;
 mod rest_interface;
+mod web_interface;
 
+use std::sync::{Arc, Mutex};
 use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
 use disk::disk::Disk;
@@ -12,9 +14,9 @@ use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
 use interface::clock::ReadClock;
 use shared_bus::BusManagerStd;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+use crate::schedule_system::ScheduleSystem;
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
@@ -51,7 +53,7 @@ fn main() {
     access_point.start().unwrap();
 
     /* Clock init */
-    let mut clock: Clock = Clock::new(
+    let clock: Clock = Clock::new(
         i2c_bus_manager.acquire_i2c(),
         |result| {
             println!("Synchronizing...")
@@ -59,7 +61,7 @@ fn main() {
     /* Clock init */
 
     /* Display init */
-    let mut display: Display = Display::new(i2c_bus_manager.acquire_i2c()).unwrap();
+    let display: Display = Display::new(i2c_bus_manager.acquire_i2c()).unwrap();
     /* Display init */
 
     /* HTTP server init */
@@ -120,8 +122,11 @@ fn main() {
     //     println!("Alarm 2 {datetime} ...")
     // }).expect("TODO: panic message");
 
-    web_interface::serve(&mut http_server, Arc::new(Mutex::new(disk)));
-    rest_interface::serve(&mut http_server);
+    let schedule_system: ScheduleSystem = ScheduleSystem::new(access_point, clock, disk, display);
+    let schedule_system: Arc<Mutex<ScheduleSystem>> = Arc::new(Mutex::new(schedule_system));
+
+    rest_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
+    web_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
 
     loop {
         // let datetime = clock.get_datetime().unwrap();

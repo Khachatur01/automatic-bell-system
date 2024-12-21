@@ -2,17 +2,16 @@ use embedded_sdmmc::{sdcard, Error, Mode, SdCard, TimeSource, Timestamp, VolumeI
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::peripheral::Peripheral;
-use esp_idf_svc::hal::spi::{SpiConfig, SpiDeviceDriver, SpiDriver};
 use esp_idf_svc::hal::spi::config::Duplex;
+use esp_idf_svc::hal::spi::{SpiConfig, SpiDeviceDriver, SpiDriver};
 use esp_idf_svc::sys::EspError;
-use interface::Path;
+use interface::disk::{DiskResult, ReadDisk, WriteDisk};
+use interface::{Path, PathParseError};
 
 type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
 type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
 type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
 type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
-
-type SdResult<Ok> = Result<Ok, Error<sdcard::Error>>;
 
 
 pub struct SdMmcClock;
@@ -44,8 +43,10 @@ impl<'a> Disk<'a> {
 
         Ok(Self { volume_manager: VolumeManager::new(sdcard, SdMmcClock) })
     }
+}
 
-    pub fn read_from_file(&mut self, path: &Path) -> SdResult<Vec<u8>> {
+impl<'a> ReadDisk for Disk<'a> {
+    fn read_from_file(&mut self, path: &Path) -> DiskResult<Vec<u8>> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
@@ -60,8 +61,10 @@ impl<'a> Disk<'a> {
 
         Ok(buffer)
     }
+}
 
-    pub fn write_to_file(&mut self, path: &Path, data_buffer: Vec<u8>) -> SdResult<()> {
+impl<'a> WriteDisk for Disk<'a> {
+    fn write_to_file(&mut self, path: &Path, data_buffer: &mut [u8]) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
@@ -71,7 +74,7 @@ impl<'a> Disk<'a> {
 
         let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadWriteCreate)?;
 
-        file.write(data_buffer.as_slice())?;
+        file.write(data_buffer)?;
 
         Ok(())
     }

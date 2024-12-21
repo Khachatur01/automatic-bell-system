@@ -1,15 +1,15 @@
 use crate::alarm::Alarm;
 use crate::system_time::SystemTime;
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, NaiveDateTime, Timelike, Utc};
 use ds323x::interface::I2cInterface;
 use ds323x::{ic, DateTimeAccess, Ds323x};
 use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
 use esp_idf_svc::systime::EspSystemTime;
-use interface::clock::ReadClock;
+use interface::clock::{ReadClock, WriteClock};
 use interface::ClockError;
 use shared_bus::I2cProxy;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::thread::JoinHandle;
@@ -131,6 +131,9 @@ impl Clock {
         })
     }
 
+    /**
+    * Synchronize ESP32 system time by getting external RTC time.
+    */
     fn synchronize_datetime(api: &mut Api) -> Result<(), ClockError> {
         if let Ok(datetime) = api.rtc_driver.datetime() {
             let timestamp: u64 = datetime.and_utc().timestamp() as u64;
@@ -167,5 +170,24 @@ impl ReadClock for Clock {
 
         DateTime::from_timestamp(seconds as i64, 0)
             .ok_or(ClockError::InvalidTimestamp(seconds))
+    }
+}
+
+impl WriteClock for Clock {
+    fn set_datetime(&mut self, datetime: DateTime<Utc>) -> Result<(), ClockError> {
+        let mut api: MutexGuard<Api> = self.api.lock().map_err(|_| ClockError::MutexLockError)?;
+        let naive_date_time: NaiveDateTime = datetime.naive_utc();
+        let timestamp: u64 = naive_date_time.and_utc().timestamp() as u64;
+
+        api.rtc_driver
+            .set_datetime(&naive_date_time)
+            .map_err(|_| ClockError::MutexLockError)?;
+
+
+        api.system_time.set_time(
+            Duration::new(timestamp, 0)
+        );
+
+        Ok(())
     }
 }
