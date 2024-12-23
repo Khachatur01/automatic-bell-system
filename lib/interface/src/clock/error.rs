@@ -1,6 +1,6 @@
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 
+#[derive(Debug)]
 pub enum ClockError {
     EspError,
     SynchronizationError,
@@ -8,17 +8,3 @@ pub enum ClockError {
     MutexLockError,
     InvalidTimestamp(u64)
 }
-
-impl Debug for ClockError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl Display for ClockError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl Error for ClockError {}

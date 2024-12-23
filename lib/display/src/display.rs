@@ -27,7 +27,7 @@ impl<'a> Display<'a> {
 
         display_driver.init()?;
         display_driver.clear_buffer();
-        display_driver.flush();
+        display_driver.flush()?;
 
         Ok(Self { driver: display_driver })
     }

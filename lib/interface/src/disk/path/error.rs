@@ -7,11 +7,3 @@ pub enum PathParseError {
     PathShouldBeAbsolute,
     PathShouldEndWithFilename,
 }
-
-impl Display for PathParseError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
-impl Error for PathParseError {}

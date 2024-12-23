@@ -2,12 +2,7 @@ mod schedule_system;
 mod rest_interface;
 mod web_interface;
 
-use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::ScheduleSystem;
-use access_point::access_point::AccessPoint;
-use clock::clock::Clock;
-use disk::disk::Disk;
-use display::display::Display;
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::prelude::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
@@ -15,6 +10,7 @@ use esp_idf_svc::hal::spi::SpiDriver;
 use http_server::http_server::HttpServer;
 use interface::clock::ReadClock;
 use shared_bus::BusManagerStd;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
@@ -49,19 +45,19 @@ fn main() {
     let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).unwrap();
     /* Init SDA driver */
 
-    let mut access_point: AccessPoint = AccessPoint::new(peripherals.modem).unwrap();
-    access_point.start().unwrap();
+    // let mut access_point: AccessPoint = AccessPoint::new(peripherals.modem).unwrap();
+    // access_point.start().unwrap();
 
     /* Clock init */
-    let clock: Clock<AlarmId> = Clock::new(
-        i2c_bus_manager.acquire_i2c(),
-        |result| {
-            println!("Synchronizing...")
-        }).unwrap();
+    // let clock: Clock<AlarmId> = Clock::new(
+    //     i2c_bus_manager.acquire_i2c(),
+    //     |result| {
+    //         println!("Synchronizing...")
+    //     }).unwrap();
     /* Clock init */
 
     /* Display init */
-    let display: Display = Display::new(i2c_bus_manager.acquire_i2c()).unwrap();
+    // let display: Display = Display::new(i2c_bus_manager.acquire_i2c()).unwrap();
     /* Display init */
 
     /* HTTP server init */
@@ -69,7 +65,7 @@ fn main() {
     /* HTTP server init */
 
     /* SD Card init */
-    let disk: Disk = Disk::new(spi_driver, cs).unwrap();
+    // let disk: Disk = Disk::new(spi_driver, cs).unwrap();
 
     // let path = Path::try_from(String::from("/test.txt")).unwrap();
 
@@ -122,20 +118,21 @@ fn main() {
     //     println!("Alarm 2 {datetime} ...")
     // }).expect("TODO: panic message");
 
-    let schedule_system: ScheduleSystem = ScheduleSystem::new(access_point, clock, disk, display);
+    let schedule_system: ScheduleSystem = ScheduleSystem::new(
+        i2c_bus_manager,
+        spi_driver, cs, peripherals.modem
+    ).unwrap();
+
+    let schedule_system: Arc<ScheduleSystem> = Arc::new(schedule_system);
+    schedule_system.enable_access_point().unwrap();
 
     // let schedule_system: ScheduleSystem = ScheduleSystem::new(access_point, clock, disk, display);
     // let schedule_system: Arc<Mutex<ScheduleSystem>> = Arc::new(Mutex::new(schedule_system));
-    // 
+    //
     // rest_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
-    // web_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
+    web_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
 
     loop {
-        // let datetime = clock.get_datetime().unwrap();
-        //
-        // println!("{}", datetime);
-
-        // display.display_information(datetime, datetime).unwrap();
         thread::sleep(Duration::from_secs(1));
     }
 }
