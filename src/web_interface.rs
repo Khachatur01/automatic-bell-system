@@ -19,11 +19,11 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 
         if let Ok(path) = Path::try_from(format!("{UI_FILES_LOCATION}{filepath}")) {
             match schedule_system_clone.read_from_file(&path) {
-                Ok(content) => request.ok(content),
-                Err(error) => request.not_found(format!("Can't read from file |{filepath}|. {error}").into())
+                Ok(content) => request.ok(content.as_slice()),
+                Err(error) => request.not_found(format!("Can't read from file |{filepath}|. {error}").as_bytes())
             }
         } else {
-            request.bad_request(format!("Can't build file path |{UI_FILES_LOCATION}{filepath}|!").into())
+            request.bad_request(format!("Can't build file path |{UI_FILES_LOCATION}{filepath}|!").as_bytes())
         }
     })
 }

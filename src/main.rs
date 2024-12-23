@@ -45,52 +45,6 @@ fn main() {
     let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).unwrap();
     /* Init SDA driver */
 
-    // let mut access_point: AccessPoint = AccessPoint::new(peripherals.modem).unwrap();
-    // access_point.start().unwrap();
-
-    /* Clock init */
-    // let clock: Clock<AlarmId> = Clock::new(
-    //     i2c_bus_manager.acquire_i2c(),
-    //     |result| {
-    //         println!("Synchronizing...")
-    //     }).unwrap();
-    /* Clock init */
-
-    /* Display init */
-    // let display: Display = Display::new(i2c_bus_manager.acquire_i2c()).unwrap();
-    /* Display init */
-
-    /* HTTP server init */
-    /* HTTP server init */
-
-    /* SD Card init */
-    // let disk: Disk = Disk::new(spi_driver, cs).unwrap();
-
-    // let path = Path::try_from(String::from("/test.txt")).unwrap();
-
-    // match disk.read_from_file(&path) {
-    //     Ok(buffer) => {
-    //         let content = String::from_utf8(buffer).unwrap();
-    //
-    //         println!("content: |{content}|");
-    //     }
-    //     Err(_) => {}
-    // }
-    /* SD Card init */
-
-    // println!("1");
-    // let sd = SdHost::new_with_spi(&Default::default(), SpiDevice::new(spi_driver, cs, None::<Gpio25>, None::<Gpio25>, None::<Gpio25>, None::<bool>));
-    // println!("2");
-    // Fat::mount(Default::default(), sd, "/sdcard").unwrap();
-    // println!("3");
-    // let paths = fs::read_dir("/sdcard").unwrap();
-    // println!("4");
-    //
-    // for path in paths {
-    //     println!("Name: {}", path.unwrap().path().display())
-    // }
-    // println!("5");
-
     // clock.add_alarm("alarm1".parse().unwrap(), Alarm {
     //     year: AlarmMarcher::Ignore,
     //     month: AlarmMarcher::Ignore,
