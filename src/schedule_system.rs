@@ -63,6 +63,7 @@ impl ScheduleSystem {
         })
     }
 
+
     pub fn enable_access_point(&self) -> ScheduleSystemResult<()> {
         self.access_point
             .lock()

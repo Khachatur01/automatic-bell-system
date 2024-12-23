@@ -61,7 +61,6 @@ fn main() {
     /* Display init */
 
     /* HTTP server init */
-    let mut http_server: HttpServer = HttpServer::new().unwrap();
     /* HTTP server init */
 
     /* SD Card init */
@@ -126,10 +125,9 @@ fn main() {
     let schedule_system: Arc<ScheduleSystem> = Arc::new(schedule_system);
     schedule_system.enable_access_point().unwrap();
 
-    // let schedule_system: ScheduleSystem = ScheduleSystem::new(access_point, clock, disk, display);
-    // let schedule_system: Arc<Mutex<ScheduleSystem>> = Arc::new(Mutex::new(schedule_system));
-    //
-    // rest_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
+    let mut http_server: HttpServer = HttpServer::new().unwrap();
+
+    rest_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
     web_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
 
     loop {

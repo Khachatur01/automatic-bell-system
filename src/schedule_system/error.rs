@@ -16,6 +16,6 @@ pub enum ScheduleSystemError {
 
 impl Display for ScheduleSystemError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Schedule System Error: {:?}", self)
     }
 }
