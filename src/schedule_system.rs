@@ -8,10 +8,11 @@ use chrono::{DateTime, Utc};
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use esp_idf_svc::hal::gpio::OutputPin;
-use esp_idf_svc::hal::i2c::I2cDriver;
-use esp_idf_svc::hal::modem;
+use esp_idf_svc::hal::gpio::{Gpio2, Gpio4, OutputPin};
+use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::peripheral::Peripheral;
+use esp_idf_svc::hal::peripherals::Peripherals;
+use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use interface::clock::{ReadClock, WriteClock};
 use interface::disk::{ReadDisk, WriteDisk};
@@ -20,26 +21,45 @@ use shared_bus::BusManagerStd;
 use std::sync::{Arc, Mutex};
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
+type AlarmOutput = (Gpio2, Gpio4);
 
 pub struct ScheduleSystem {
     access_point: Arc<Mutex<AccessPoint<'static>>>,
     clock: Arc<Mutex<Clock<AlarmId>>>,
     disk: Arc<Mutex<Disk<'static>>>,
     display: Arc<Mutex<Display<'static>>>,
+    alarm_output: Arc<Mutex<AlarmOutput>>
 }
 
 impl ScheduleSystem {
-    pub fn new<CS: Peripheral<P = impl OutputPin> + 'static>(
-        i2c_bus_manager: &'static BusManagerStd<I2cDriver<'static>>,
-        spi_driver: SpiDriver<'static>, cs: CS,
-        modem: modem::Modem
-    ) -> Result<Self, ScheduleSystemError> {
+    pub fn new(peripherals: Peripherals) -> Result<Self, ScheduleSystemError> {
+        /* Init I2c bus */
+        let i2c = peripherals.i2c0;
+        let sda = peripherals.pins.gpio22;
+        let scl = peripherals.pins.gpio23;
+        let i2c_config = I2cConfig::default();
+        let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).unwrap();
+
+        let i2c_bus_manager: &'static BusManagerStd<I2cDriver> = shared_bus::new_std!(I2cDriver = i2c_driver).unwrap();
+        /* Init I2c bus */
+
+        /* Init SPI driver */
+        let spi = peripherals.spi2;
+        let scl = peripherals.pins.gpio18;
+        let sdo = peripherals.pins.gpio19;
+        let sdi = peripherals.pins.gpio21;
+        let cs = peripherals.pins.gpio5;
+
+        let driver_config: DriverConfig = DriverConfig::default();
+        let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).unwrap();
+        /* Init SDA driver */
+
 
         let disk: Disk = Disk::new(spi_driver, cs)
             .map_err(ScheduleSystemError::EspError)?;
         let disk = Arc::new(Mutex::new(disk));
 
-        let access_point: AccessPoint = AccessPoint::new(modem)
+        let access_point: AccessPoint = AccessPoint::new(peripherals.modem)
             .map_err(ScheduleSystemError::EspError)?;
         let access_point = Arc::new(Mutex::new(access_point));
 
@@ -55,11 +75,18 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::ClockError)?;
         let clock = Arc::new(Mutex::new(clock));
 
+        let alarm_output: AlarmOutput = (
+            peripherals.pins.gpio2,
+            peripherals.pins.gpio4,
+        );
+        let alarm_output = Arc::new(Mutex::new(alarm_output));
+
         Ok(Self {
             access_point,
             clock,
             disk,
             display,
+            alarm_output
         })
     }
 
