@@ -45,7 +45,6 @@ access_point = { path = "lib/access_point" }
 http_server = { path = "lib/http_server" }
 disk = { path = "lib/disk" }
 interface = { path = "lib/interface" }
-serde_json = "1.0.134"
 
 [build-dependencies]
 embuild = "0.32.0"

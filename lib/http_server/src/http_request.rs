@@ -1,57 +1,82 @@
 use esp_idf_svc::http::server::{Connection, Request, Response};
 use esp_idf_svc::io::Write;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
-fn status_response<'a, C>(mut request: Request<C>,
-                          status: u16,
-                          data: &[u8],
-                          message: &'a str,
-                          headers: &'a [(&'a str, &'a str)],) -> Result<(), C::Error>
-where C: Connection {
-    let mut response: Response<C> = request.into_response(status, Some(message), headers)?;
-    response.write_all(data)?;
+fn status_response<'a, C, Data>(mut request: Request<C>,
+                                status: u16,
+                                data: &Data,
+                                message: &'a str,
+                                headers: &'a [(&'a str, &'a str)],) -> RequestResult<(), C::Error>
+where C: Connection,
+      Data: Serialize {
+
+    let mut response: Response<C> = request
+        .into_response(status, Some(message), headers)
+        .map_err(Error::ConnectionError)?;
+
+    let json_data: String = serde_json::to_string(data)
+        .map_err(Error::SerdeError)?;
+
+    let data: &[u8] = json_data.as_bytes();
+
+    response.write_all(data)
+        .map_err(Error::ConnectionError)?;
+
     Ok(())
 }
 
+pub enum Error<ConnectionError> {
+    SerdeError(serde_json::Error),
+    ConnectionError(ConnectionError),
+}
+
+pub type RequestResult<V, ConnectionError> = Result<V, Error<ConnectionError>>;
+
 pub trait HttpRequest<C>
 where C: Connection {
-    fn ok(self, data: &[u8]) -> Result<(), C::Error>;
+    fn ok<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
 
-    fn bad_request(self, data: &[u8]) -> Result<(), C::Error>;
+    fn bad_request<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
 
-    fn not_found(self, data: &[u8]) -> Result<(), C::Error>;
+    fn not_found<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
 
-    fn internal_server_error(self, data: &[u8]) -> Result<(), C::Error>;
+    fn internal_server_error<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
 
-    fn read_all(&mut self) -> Result<Vec<u8>, C::Error>;
+    fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
 }
 
 impl<C> HttpRequest<C> for Request<C>
 where C: Connection {
-    fn ok(self, data: &[u8]) -> Result<(), C::Error> {
+    fn ok<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 200, data, "Ok", &[])
     }
 
-    fn bad_request(self, data: &[u8]) -> Result<(), C::Error> {
+    fn bad_request<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 400, data, "Bad Request", &[])
     }
 
-    fn not_found(self, data: &[u8]) -> Result<(), C::Error> {
+    fn not_found<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 404, data, "Not found", &[])
     }
 
-    fn internal_server_error(self, data: &[u8]) -> Result<(), C::Error> {
+    fn internal_server_error<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 500, data, "Internal Server Error", &[])
     }
 
-    fn read_all(&mut self) -> Result<Vec<u8>, C::Error> {
+    fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error> {
         let content_length: usize = self
             .header("Content-Length")
             .and_then(|content_length| content_length.parse().ok())
             .unwrap_or(0);
-        
-        let mut buffer: Vec<u8> = vec![0; content_length];
-        self.read(buffer.as_mut_slice())?;
 
-        Ok(buffer)
+        let mut buffer: Vec<u8> = vec![0; content_length];
+        self.read(buffer.as_mut_slice()).map_err(Error::ConnectionError)?;
+
+        let data: String = String::from_utf8_lossy(&buffer).to_string();
+
+        let data: Data = serde_json::from_str(&data).map_err(Error::SerdeError)?;
+
+        Ok(data)
     }
 }

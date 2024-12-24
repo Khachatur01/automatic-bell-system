@@ -1,8 +1,10 @@
 use esp_idf_svc::http::server::{Configuration, EspHttpConnection, EspHttpServer, Request};
 use esp_idf_svc::http::Method;
 use esp_idf_svc::io::EspIOError;
-use esp_idf_svc::sys::EspError;
+use esp_idf_svc::sys::{EspError, ESP_ERR_INVALID_ARG};
 use std::fmt::Debug;
+use crate::http_request;
+use crate::http_request::RequestResult;
 
 pub struct HttpServer<'a> {
     server: EspHttpServer<'a>,
@@ -25,10 +27,18 @@ impl<'a> HttpServer<'a> {
         handle_request: F,
     ) -> Result<(), EspError>
     where
-        F: for<'r> Fn(Request<&mut EspHttpConnection<'r>>) -> Result<(), EspIOError> + Send + 'static,
+        F: for<'r> Fn(Request<&mut EspHttpConnection<'r>>) -> RequestResult<(), EspIOError> + Send + 'static,
     {
         self.server.fn_handler(uri, method, move |esp_http_request: Request<&mut EspHttpConnection>| -> Result<(), EspIOError> {
-            handle_request(esp_http_request).map(|_| ())
+            handle_request(esp_http_request).map(|_| ()).map_err(|error| {
+                match error {
+                    http_request::Error::SerdeError(_) => {
+                        let esp_error: EspError = EspError::from(ESP_ERR_INVALID_ARG).unwrap();
+                        EspIOError::from(esp_error)
+                    },
+                    http_request::Error::ConnectionError(error) => error
+                }
+            })
         })?;
 
         Ok(())

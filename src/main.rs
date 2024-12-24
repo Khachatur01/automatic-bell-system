@@ -86,6 +86,6 @@ fn main() {
     web_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
 
     loop {
-        thread::sleep(Duration::from_secs(1));
+        thread::sleep(Duration::from_secs(10));
     }
 }
