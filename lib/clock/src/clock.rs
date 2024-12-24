@@ -100,26 +100,34 @@ where AlarmId: Eq + Hash + Send + Sync + 'static {
         let shutdown_lock: Arc<RwLock<AtomicBool>> = Arc::clone(&self.shutdown);
 
         thread::spawn(move || loop {
-            if let (Ok(mut api), Ok(alarms)) = (api_lock.read(), alarms_lock.read()) {
-                let seconds: u64 = api.system_time.get_time().as_secs();
-                let datetime: Option<DateTime<Utc>> = DateTime::from_timestamp(seconds as i64, 0);
-
-                if let Some(datetime) = datetime {
-                    alarms.iter().for_each(|(id, (alarm, callback))| {
-                        if alarm.matches(&datetime) {
-                            callback(id, &datetime)
-                        }
+            /* lock(read) api to read current time */
+            let datetime: Option<DateTime<Utc>> = 
+                api_lock
+                    .read()
+                    .map_or(None, |api| {
+                        let seconds: u64 = api.system_time.get_time().as_secs();
+                        DateTime::from_timestamp(seconds as i64, 0)                
                     });
 
-                    /* synchronize datetime every hour */
-                    if datetime.minute() == 0 && datetime.second() == 0 {
-                        if let Ok(mut api) = api_lock.write() {
-                            let result: Result<(), ClockError> = Clock::<AlarmId>::synchronize_datetime(&mut *api);
-                            on_synchronize(result);                            
-                        }
-                    }
-                }
+            let Some(datetime) = datetime else {
+                continue;
+            };
+
+            /* check matching alarms */
+            if let Ok(alarms) = alarms_lock.read() {
+                alarms
+                    .iter()
+                    .filter(|(id, (alarm, _))| alarm.matches(&datetime))
+                    .for_each(|(id, (_, callback))| callback(id, &datetime));
             }
+
+            /* lock(write) api to synchronize time every hour */
+            if datetime.minute() == 0 && datetime.second() == 0 {
+                if let Ok(mut api) = api_lock.write() {
+                    let result: Result<(), ClockError> = Clock::<AlarmId>::synchronize_datetime(&mut *api);
+                    on_synchronize(result);
+                }
+            };
 
             if let Ok(shutdown) = shutdown_lock.read() {
                 if shutdown.load(Ordering::SeqCst) {
