@@ -1,4 +1,7 @@
+use uuid::Uuid;
+
 #[derive(Eq, PartialEq, Hash)]
 pub struct AlarmId {
-    output_pin: u8,
+    pub output_pin: u8,
+    pub uuid: Uuid
 }

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::hash::Hash;
-use chrono::{DateTime, Datelike, Timelike, Utc, Weekday};
+use chrono::{DateTime, Datelike, Month, Timelike, Utc, Weekday};
 
 pub enum AlarmMarcher<T: Eq + Hash> {
     Ignore,
@@ -10,7 +10,7 @@ pub enum AlarmMarcher<T: Eq + Hash> {
 
 pub struct Alarm {
     pub year: AlarmMarcher<u16>,
-    pub month: AlarmMarcher<u8>,
+    pub month: AlarmMarcher<Month>,
     pub month_day: AlarmMarcher<u8>,
     pub week_day: AlarmMarcher<Weekday>,
 
@@ -21,8 +21,13 @@ pub struct Alarm {
 
 impl Alarm {
     pub fn matches(&self, datetime: &DateTime<Utc>) -> bool {
+        let month: Month = match Month::try_from(datetime.month() as u8) {
+            Ok(month) => month,
+            Err(_) => return false /* todo: add log */
+        };
+
         Alarm::segment_matches(&self.year, &(datetime.year() as u16)) &&
-        Alarm::segment_matches(&self.month, &(datetime.month() as u8)) &&
+        Alarm::segment_matches(&self.month, &month) &&
         Alarm::segment_matches(&self.month_day, &(datetime.day() as u8)) &&
         Alarm::segment_matches(&self.week_day, &datetime.weekday()) &&
 

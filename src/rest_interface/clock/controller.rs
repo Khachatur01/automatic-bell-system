@@ -29,9 +29,7 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 
 fn get_clock(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
     let timestamp_millis: i64 = schedule_system.get_time().unwrap().timestamp_millis();
-    let clock_dto = ClockDTO {
-        timestamp_millis,
-    };
+    let clock_dto = ClockDTO { timestamp_millis };
 
     request.ok(&clock_dto)
 }
@@ -39,10 +37,11 @@ fn get_clock(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
 fn set_clock(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
     let clock: ClockDTO = request.read_all()?;
 
-    let datetime: DateTime<Utc> = match DateTime::<Utc>::from_timestamp_millis(clock.timestamp_millis) {
-        Some(datetime) => datetime,
-        None => return request.bad_request(&format!("Can't convert timestamp {} to datetime.", clock.timestamp_millis))
-    };
+    let datetime: DateTime<Utc> =
+        match DateTime::<Utc>::from_timestamp_millis(clock.timestamp_millis) {
+            Some(datetime) => datetime,
+            None => return request.bad_request(&format!("Can't convert timestamp {} to datetime.", clock.timestamp_millis))
+        };
 
     match schedule_system.set_time(datetime) {
         Ok(_) => request.ok(&"Time synchronized"),

@@ -38,6 +38,8 @@ display-interface = "0.4.1"
 chrono = "0.4.38"
 embedded-sdmmc = "0.8.0"
 serde = { version = "1.0.216", features = ["derive"] }
+serde_urlencoded = "0.7.1"
+uuid = "1.11.0"
 
 clock = { path = "lib/clock" }
 display = { path = "lib/display" }

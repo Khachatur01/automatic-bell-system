@@ -4,7 +4,7 @@ use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::sys::{EspError, ESP_ERR_INVALID_ARG};
 use std::fmt::Debug;
 use crate::http_request;
-use crate::http_request::RequestResult;
+use crate::http_request::{RequestError, RequestResult};
 
 pub struct HttpServer<'a> {
     server: EspHttpServer<'a>,
@@ -32,11 +32,17 @@ impl<'a> HttpServer<'a> {
         self.server.fn_handler(uri, method, move |esp_http_request: Request<&mut EspHttpConnection>| -> Result<(), EspIOError> {
             handle_request(esp_http_request).map(|_| ()).map_err(|error| {
                 match error {
-                    http_request::Error::SerdeError(_) => {
+                    http_request::RequestError::SerdeJsonError(error) => {
+                        println!("{error}");
                         let esp_error: EspError = EspError::from(ESP_ERR_INVALID_ARG).unwrap();
                         EspIOError::from(esp_error)
                     },
-                    http_request::Error::ConnectionError(error) => error
+                    http_request::RequestError::SerdeURLError(error) => {
+                        println!("{error}");
+                        let esp_error: EspError = EspError::from(ESP_ERR_INVALID_ARG).unwrap();
+                        EspIOError::from(esp_error)
+                    },
+                    http_request::RequestError::ConnectionError(error) => error,
                 }
             })
         })?;
