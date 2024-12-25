@@ -19,6 +19,7 @@ use interface::disk::{ReadDisk, WriteDisk};
 use interface::Path;
 use shared_bus::BusManagerStd;
 use std::sync::{Arc, Mutex};
+use clock::alarm::Alarm;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutput = (Gpio2, Gpio4);
@@ -142,6 +143,15 @@ impl ScheduleSystem {
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .set_datetime(datetime)
+            .map_err(ScheduleSystemError::ClockError)
+    }
+
+
+    pub fn get_alarm(&self, alarm_id: &AlarmId) -> ScheduleSystemResult<Alarm> {
+        self.clock
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .get_alarm(alarm_id)
             .map_err(ScheduleSystemError::ClockError)
     }
 }

@@ -4,7 +4,7 @@ use esp_idf_svc::http::server::{EspHttpConnection, Request};
 use esp_idf_svc::http::Method;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::sys::EspError;
-use http_server::http_request::HttpRequest;
+use http_server::http_request::{HttpRequest, RequestError};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
 use chrono::{Month, Weekday};
@@ -44,18 +44,15 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 }
 
 fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let alarm_id: AlarmIdDTO = request.parameters()?;
-    println!("alarm_id: {:?}", alarm_id);
+    let alarm_id_dto: AlarmIdDTO = request.parameters()?;
+    let alarm_id: AlarmId =
+        match alarm_id_dto.try_into() { 
+            Ok(alarm) => alarm,
+            Err(error) => return request.bad_request(&error.to_string())
+        };
 
-    let alarm = Alarm {
-        year: AlarmMarcher::Ignore,
-        month: AlarmMarcher::DoNotMatch(HashSet::from([Month::August, Month::May])),
-        month_day: AlarmMarcher::Ignore,
-        week_day: AlarmMarcher::Match(HashSet::from([Weekday::Mon, Weekday::Fri])),
-        hour: AlarmMarcher::Ignore,
-        minute: AlarmMarcher::Match(HashSet::from([4, 7, 8, 9])),
-        second: AlarmMarcher::DoNotMatch(HashSet::from([2, 1, 4])),
-    };
+    let alarm: Alarm = schedule_system.get_alarm(&alarm_id)
+        .map_err(|error| RequestError::CustomError(error.to_string()))?;
 
     let alarm_dto: AlarmDTO = alarm.into();
 

@@ -5,6 +5,7 @@ pub enum ClockError {
     EspError,
     SynchronizationError,
     CanNotSubscribeToAlarmInterruption,
+    AlarmNotFound,
     MutexLockError,
     InvalidTimestamp(u64)
 }

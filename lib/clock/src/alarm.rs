@@ -1,13 +1,16 @@
 use std::collections::HashSet;
+use std::fmt::Debug;
 use std::hash::Hash;
 use chrono::{DateTime, Datelike, Month, Timelike, Utc, Weekday};
 
-pub enum AlarmMarcher<T: Eq + Hash> {
+#[derive(Clone)]
+pub enum AlarmMarcher<T: Eq + Hash + Clone> {
     Ignore,
     Match(HashSet<T>),
     DoNotMatch(HashSet<T>)
 }
 
+#[derive(Clone)]
 pub struct Alarm {
     pub year: AlarmMarcher<u16>,
     pub month: AlarmMarcher<Month>,
@@ -36,7 +39,7 @@ impl Alarm {
         Alarm::segment_matches(&self.second, &(datetime.second() as u8))
     }
 
-    fn segment_matches<T: Eq + Hash>(alarm_matcher: &AlarmMarcher<T>, segment: &T) -> bool {
+    fn segment_matches<T: Eq + Hash + Clone>(alarm_matcher: &AlarmMarcher<T>, segment: &T) -> bool {
         match alarm_matcher {
             AlarmMarcher::Ignore => true,
             AlarmMarcher::Match(match_set) => {

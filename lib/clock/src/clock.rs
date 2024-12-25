@@ -61,6 +61,16 @@ where AlarmId: Eq + Hash + Send + Sync + 'static {
         Ok(this)
     }
 
+    pub fn get_alarm(&self, id: &AlarmId) -> Result<Alarm, ClockError> {
+        self
+            .alarms
+            .read()
+            .map_err(|_| ClockError::MutexLockError)?
+            .get(id)
+            .map(|(alarm, _)| alarm.clone())
+            .ok_or(ClockError::AlarmNotFound)
+    }
+
     pub fn add_alarm(&mut self, id: AlarmId, alarm: Alarm, callback: fn(&AlarmId, &DateTime<Utc>)) -> Result<(), ClockError> {
         let _ = self
             .alarms

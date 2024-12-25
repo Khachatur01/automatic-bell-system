@@ -29,22 +29,8 @@ impl<'a> HttpServer<'a> {
     where
         F: for<'r> Fn(Request<&mut EspHttpConnection<'r>>) -> RequestResult<(), EspIOError> + Send + 'static,
     {
-        self.server.fn_handler(uri, method, move |esp_http_request: Request<&mut EspHttpConnection>| -> Result<(), EspIOError> {
-            handle_request(esp_http_request).map(|_| ()).map_err(|error| {
-                match error {
-                    http_request::RequestError::SerdeJsonError(error) => {
-                        println!("{error}");
-                        let esp_error: EspError = EspError::from(ESP_ERR_INVALID_ARG).unwrap();
-                        EspIOError::from(esp_error)
-                    },
-                    http_request::RequestError::SerdeURLError(error) => {
-                        println!("{error}");
-                        let esp_error: EspError = EspError::from(ESP_ERR_INVALID_ARG).unwrap();
-                        EspIOError::from(esp_error)
-                    },
-                    http_request::RequestError::ConnectionError(error) => error,
-                }
-            })
+        self.server.fn_handler::<RequestError<EspIOError>, _>(uri, method, move |esp_http_request: Request<&mut EspHttpConnection>| -> RequestResult<(), EspIOError> {
+            handle_request(esp_http_request).map(|_| ())
         })?;
 
         Ok(())

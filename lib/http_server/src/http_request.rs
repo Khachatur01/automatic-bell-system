@@ -31,6 +31,7 @@ pub enum RequestError<ConnectionError> {
     SerdeJsonError(serde_json::Error),
     SerdeURLError(serde_urlencoded::de::Error),
     ConnectionError(ConnectionError),
+    CustomError(String),
 }
 
 pub type RequestResult<V, ConnectionError> = Result<V, RequestError<ConnectionError>>;
@@ -68,6 +69,10 @@ where C: Connection {
         status_response(self, 500, data, "Internal Server Error", &[])
     }
 
+    /**
+    * URI example: /api/v1/resource?param1=value1&param2=value2
+    * Method serde_urlencoded::from_str() gets string containing everything after '?' symbol.
+    */
     fn parameters<Parameters: DeserializeOwned>(&self) -> RequestResult<Parameters, C::Error> {
         if let Some((_, params)) = self.uri().split_once("?") {
             serde_urlencoded::from_str::<Parameters>(params)

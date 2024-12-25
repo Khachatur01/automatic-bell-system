@@ -4,7 +4,7 @@ use chrono::{Month, Weekday};
 use serde::{Deserialize, Serialize};
 use clock::alarm::{Alarm, AlarmMarcher};
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum WeekdayDTO {
     Monday,
     Tuesday,
@@ -44,7 +44,7 @@ impl From<Weekday> for WeekdayDTO {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum MonthDTO {
     January,
     February,
@@ -100,13 +100,13 @@ impl From<Month> for MonthDTO {
 
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum AlarmMarcherDTO<T: Eq + Hash> {
+pub enum AlarmMarcherDTO<T: Eq + Hash + Clone> {
     Ignore,
     Match(HashSet<T>),
     DoNotMatch(HashSet<T>),
 }
 
-impl<Dto: Eq + Hash, T: Eq + Hash + From<Dto>> From<AlarmMarcherDTO<Dto>> for AlarmMarcher<T> {
+impl<Dto: Eq + Hash + Clone, T: Eq + Hash + Clone + From<Dto>> From<AlarmMarcherDTO<Dto>> for AlarmMarcher<T> {
     fn from(alarm_matcher_dto: AlarmMarcherDTO<Dto>) -> Self {
         match alarm_matcher_dto {
             AlarmMarcherDTO::Ignore => AlarmMarcher::Ignore,
@@ -128,7 +128,7 @@ impl<Dto: Eq + Hash, T: Eq + Hash + From<Dto>> From<AlarmMarcherDTO<Dto>> for Al
     }
 }
 
-impl<Dto: Eq + Hash + From<T>, T: Eq + Hash> From<AlarmMarcher<T>> for AlarmMarcherDTO<Dto> {
+impl<Dto: Eq + Hash + Clone + From<T>, T: Eq + Hash + Clone> From<AlarmMarcher<T>> for AlarmMarcherDTO<Dto> {
     fn from(alarm_matcher: AlarmMarcher<T>) -> Self {
         match alarm_matcher {
             AlarmMarcher::Ignore => AlarmMarcherDTO::Ignore,
