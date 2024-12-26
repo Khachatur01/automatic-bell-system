@@ -1,6 +1,7 @@
 pub mod alarm_id;
 mod error;
 
+use std::collections::HashMap;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
 use access_point::access_point::AccessPoint;
@@ -153,5 +154,31 @@ impl ScheduleSystem {
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .get_alarm(alarm_id)
             .map_err(ScheduleSystemError::ClockError)
+    }
+
+    pub fn get_alarms(&self) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
+        self.clock
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .get_alarms()
+            .map_err(ScheduleSystemError::ClockError)
+    }
+
+    pub fn get_alarms_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
+        let alarms = self.clock
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .get_alarms()
+            .map_err(ScheduleSystemError::ClockError)?
+            .into_iter()
+            .fold(HashMap::new(), |mut accumulator, (alarm_id, alarm)| {
+                if alarm_id.output_index == output_index {
+                    accumulator.insert(alarm_id, alarm.clone());
+                }
+
+                accumulator
+            });
+
+        Ok(alarms)
     }
 }

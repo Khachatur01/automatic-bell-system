@@ -1,10 +1,10 @@
 use crate::schedule_system::alarm_id::AlarmId;
 use serde::{Deserialize, Serialize};
-use uuid::{Error};
+use uuid::Error;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct AlarmIdDTO {
-    output_pin: u8,
+    output_index: u8,
     uuid: String
 }
 
@@ -13,7 +13,7 @@ impl TryFrom<AlarmIdDTO> for AlarmId {
 
     fn try_from(alarm_id_dto: AlarmIdDTO) -> Result<Self, Self::Error> {
         Ok(Self {
-            output_pin: alarm_id_dto.output_pin,
+            output_index: alarm_id_dto.output_index,
             uuid: alarm_id_dto.uuid.as_str().try_into()?
         })
     }
@@ -22,7 +22,7 @@ impl TryFrom<AlarmIdDTO> for AlarmId {
 impl From<AlarmId> for AlarmIdDTO {
     fn from(alarm_id: AlarmId) -> Self {
         Self {
-            output_pin: alarm_id.output_pin,
+            output_index: alarm_id.output_index,
             uuid: alarm_id.uuid.to_string()
         }
     }

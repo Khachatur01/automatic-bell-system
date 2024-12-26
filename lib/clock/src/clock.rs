@@ -36,7 +36,7 @@ pub struct Clock<AlarmId> {
 }
 
 impl<AlarmId> Clock<AlarmId>
-where AlarmId: Eq + Hash + Send + Sync + 'static {
+where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
     pub fn new<OnSynchronize>(i2c_shared_proxy: I2cSharedProxy<'static>,
                               on_synchronize: OnSynchronize) -> Result<Self, ClockError>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
@@ -59,6 +59,21 @@ where AlarmId: Eq + Hash + Send + Sync + 'static {
         this.start_alarm_matching(on_synchronize);
 
         Ok(this)
+    }
+
+    pub fn get_alarms(&self) -> Result<HashMap<AlarmId, Alarm>, ClockError> {
+        let alarms: HashMap<AlarmId, Alarm> = self
+            .alarms
+            .read()
+            .map_err(|_| ClockError::MutexLockError)?
+            .iter()
+            /* collect alarms into new hashmap to remove callbacks */
+            .fold(HashMap::new(), |mut accumulator, (alarm_id, (alarm, _))| {
+                accumulator.insert(alarm_id.clone(), alarm.clone());
+                accumulator
+            });
+
+        Ok(alarms)
     }
 
     pub fn get_alarm(&self, id: &AlarmId) -> Result<Alarm, ClockError> {
