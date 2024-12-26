@@ -1,19 +1,17 @@
-use std::collections::HashSet;
+use crate::rest_interface::alarm::model::alarm::AlarmDTO;
+use crate::rest_interface::alarm::model::alarm_id::AlarmIdDTO;
+use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::ScheduleSystem;
+use clock::alarm::Alarm;
 use esp_idf_svc::http::server::{EspHttpConnection, Request};
 use esp_idf_svc::http::Method;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::sys::EspError;
+use http_request::RequestResult;
+use http_server::http_request;
 use http_server::http_request::{HttpRequest, RequestError};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
-use chrono::{Month, Weekday};
-use clock::alarm::{Alarm, AlarmMarcher};
-use http_server::http_request;
-use http_request::RequestResult;
-use crate::rest_interface::alarm::model::alarm::AlarmDTO;
-use crate::rest_interface::alarm::model::alarm_id::AlarmIdDTO;
-use crate::schedule_system::alarm_id::AlarmId;
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
@@ -52,7 +50,7 @@ fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
         };
 
     let alarm: Alarm = schedule_system.get_alarm(&alarm_id)
-        .map_err(|error| RequestError::CustomError(error.to_string()))?;
+        .map_err(|error| RequestError::General(error.to_string()))?;
 
     let alarm_dto: AlarmDTO = alarm.into();
 
