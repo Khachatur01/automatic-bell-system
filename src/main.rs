@@ -1,7 +1,7 @@
 mod schedule_system;
 mod rest_interface;
 mod web_interface;
-mod boxed_mutex;
+mod boxed_synchronizer;
 mod types;
 
 use crate::schedule_system::ScheduleSystem;

@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Mutex, RwLock};
 use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
 use disk::disk::Disk;
@@ -17,3 +17,16 @@ impl IntoBoxedMutex for AccessPoint<'_> {}
 impl IntoBoxedMutex for Disk<'_> {}
 impl IntoBoxedMutex for Display<'_> {}
 impl IntoBoxedMutex for AlarmOutput {}
+
+pub trait IntoBoxedRwLock
+where Self: Sized {
+    fn into_boxed_rwlock(self) -> Box<RwLock<Self>> {
+        Box::from(RwLock::new(self))
+    }
+}
+
+impl<AlarmId> IntoBoxedRwLock for Clock<AlarmId> {}
+impl IntoBoxedRwLock for AccessPoint<'_> {}
+impl IntoBoxedRwLock for Disk<'_> {}
+impl IntoBoxedRwLock for Display<'_> {}
+impl IntoBoxedRwLock for AlarmOutput {}

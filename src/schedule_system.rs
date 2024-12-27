@@ -1,10 +1,10 @@
 pub mod alarm_id;
 mod error;
 
-use crate::boxed_mutex::IntoBoxedMutex;
+use crate::boxed_synchronizer::{IntoBoxedMutex, IntoBoxedRwLock};
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
-use crate::types::{AlarmOutput, BoxedMutex};
+use crate::types::{AlarmOutput, BoxedMutex, BoxedRwLock};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
 use clock::alarm::Alarm;
@@ -25,10 +25,11 @@ use std::collections::HashMap;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 
-/* Wrap fields into box to prevent stack overflowing. */
+/* Wrap fields into box to prevent stack overflowing.*/
 pub struct ScheduleSystem {
     access_point: BoxedMutex<AccessPoint<'static>>,
-    clock: BoxedMutex<Clock<AlarmId>>,
+    /* Clock is RwLock, because it requires immutable reference for reading time. */
+    clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
     display: BoxedMutex<Display<'static>>,
     alarm_output: BoxedMutex<AlarmOutput>
@@ -58,22 +59,22 @@ impl ScheduleSystem {
         /* Init SDA driver */
 
 
-        let disk: BoxedMutex<Disk> = Disk::new(spi_driver, cs)
+        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem)
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();
 
-        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem)
+        let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
+            i2c_bus_manager.acquire_i2c(),
+            |result| println!("Synchronizing..."))
+            .map_err(ScheduleSystemError::ClockError)?
+            .into_boxed_rwlock();
+
+        let disk: BoxedMutex<Disk> = Disk::new(spi_driver, cs)
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();
 
         let display: BoxedMutex<Display> = Display::new(i2c_bus_manager.acquire_i2c())
             .map_err(ScheduleSystemError::DisplayError)?
-            .into_boxed_mutex();
-
-        let clock: BoxedMutex<Clock<AlarmId>> = Clock::new(
-            i2c_bus_manager.acquire_i2c(),
-            |result| println!("Synchronizing..."))
-            .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_mutex();
 
         let alarm_output: BoxedMutex<AlarmOutput> = (
@@ -131,7 +132,7 @@ impl ScheduleSystem {
 
     pub fn get_time(&self) -> ScheduleSystemResult<DateTime<Utc>> {
         self.clock
-            .lock()
+            .read()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .get_datetime()
             .map_err(ScheduleSystemError::ClockError)
@@ -139,7 +140,7 @@ impl ScheduleSystem {
 
     pub fn set_time(&self, datetime: DateTime<Utc>) -> ScheduleSystemResult<()> {
         self.clock
-            .lock()
+            .write()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .set_datetime(datetime)
             .map_err(ScheduleSystemError::ClockError)
@@ -148,7 +149,7 @@ impl ScheduleSystem {
 
     pub fn get_alarm(&self, alarm_id: &AlarmId) -> ScheduleSystemResult<Alarm> {
         self.clock
-            .lock()
+            .read()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .get_alarm(alarm_id)
             .map_err(ScheduleSystemError::ClockError)
@@ -156,7 +157,7 @@ impl ScheduleSystem {
 
     pub fn get_alarms(&self) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
         self.clock
-            .lock()
+            .read()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .get_alarms()
             .map_err(ScheduleSystemError::ClockError)
@@ -164,7 +165,7 @@ impl ScheduleSystem {
 
     pub fn get_alarms_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
         let alarms = self.clock
-            .lock()
+            .read()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .get_alarms()
             .map_err(ScheduleSystemError::ClockError)?
