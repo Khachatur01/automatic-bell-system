@@ -3,8 +3,6 @@ use clock::alarm::{Alarm, AlarmMarcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::hash::Hash;
-use crate::rest_interface::alarm::model::alarm_id::AlarmIdDTO;
-use crate::schedule_system::alarm_id::AlarmId;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum WeekdayDTO {
@@ -108,7 +106,9 @@ pub enum AlarmMarcherDTO<T: Eq + Hash + Clone> {
     DoNotMatch(HashSet<T>),
 }
 
-impl<Dto: Eq + Hash + Clone, T: Eq + Hash + Clone + From<Dto>> From<AlarmMarcherDTO<Dto>> for AlarmMarcher<T> {
+impl<Dto, T> From<AlarmMarcherDTO<Dto>> for AlarmMarcher<T>
+where Dto: Eq + Hash + Clone,
+      T: Eq + Hash + Clone + From<Dto> {
     fn from(alarm_matcher_dto: AlarmMarcherDTO<Dto>) -> Self {
         match alarm_matcher_dto {
             AlarmMarcherDTO::Ignore => AlarmMarcher::Ignore,
@@ -130,7 +130,9 @@ impl<Dto: Eq + Hash + Clone, T: Eq + Hash + Clone + From<Dto>> From<AlarmMarcher
     }
 }
 
-impl<Dto: Eq + Hash + Clone + From<T>, T: Eq + Hash + Clone> From<AlarmMarcher<T>> for AlarmMarcherDTO<Dto> {
+impl<Dto, T> From<AlarmMarcher<T>> for AlarmMarcherDTO<Dto>
+where Dto: Eq + Hash + Clone + From<T>,
+      T: Eq + Hash + Clone {
     fn from(alarm_matcher: AlarmMarcher<T>) -> Self {
         match alarm_matcher {
             AlarmMarcher::Ignore => AlarmMarcherDTO::Ignore,

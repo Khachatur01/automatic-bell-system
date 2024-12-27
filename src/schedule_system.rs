@@ -1,10 +1,11 @@
 pub mod alarm_id;
+pub mod model;
 mod error;
 
-use crate::boxed_synchronizer::{IntoBoxedMutex, IntoBoxedRwLock};
+use crate::synchronizer::{IntoBoxedMutex, IntoBoxedRwLock};
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
-use crate::types::{AlarmOutput, BoxedMutex, BoxedRwLock};
+use crate::types::{BoxedMutex, BoxedRwLock};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
 use clock::alarm::Alarm;
@@ -22,6 +23,9 @@ use interface::disk::{ReadDisk, WriteDisk};
 use interface::Path;
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
+use uuid::Uuid;
+use crate::schedule_system::model::alarm_outputs::AlarmOutputs;
+use crate::schedule_system::model::output_index::OutputIndex;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 
@@ -32,7 +36,7 @@ pub struct ScheduleSystem {
     clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
     display: BoxedMutex<Display<'static>>,
-    alarm_output: BoxedMutex<AlarmOutput>
+    alarm_output: BoxedMutex<AlarmOutputs>
 }
 
 impl ScheduleSystem {
@@ -77,7 +81,7 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::DisplayError)?
             .into_boxed_mutex();
 
-        let alarm_output: BoxedMutex<AlarmOutput> = (
+        let alarm_output: BoxedMutex<AlarmOutputs> = (
             peripherals.pins.gpio2,
             peripherals.pins.gpio4,
         ).into_boxed_mutex();
@@ -163,7 +167,7 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::ClockError)
     }
 
-    pub fn get_alarms_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
+    pub fn get_alarms_by_output_index(&self, output_index: OutputIndex) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
         let alarms = self.clock
             .read()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
@@ -177,6 +181,21 @@ impl ScheduleSystem {
 
                 accumulator
             });
+
+        Ok(alarms)
+    }
+
+    pub fn add_alarm(&self, output_index: OutputIndex, alarm: Alarm) -> ScheduleSystemResult<()> {
+        let alarm_id: AlarmId = AlarmId {
+            output_index,
+            uuid: Uuid::new_v4(),
+        };
+
+        let alarms = self.clock
+            .write()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .add_alarm(alarm_id, alarm, |alarm_id, date_time| println!("Alarming {:?}, {date_time}", *alarm_id))
+            .map_err(ScheduleSystemError::ClockError)?;
 
         Ok(alarms)
     }

@@ -3,7 +3,7 @@ use access_point::access_point::AccessPoint;
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use crate::types::AlarmOutput;
+use crate::schedule_system::model::alarm_outputs::AlarmOutputs;
 
 pub trait IntoBoxedMutex
 where Self: Sized {
@@ -16,7 +16,7 @@ impl<AlarmId> IntoBoxedMutex for Clock<AlarmId> {}
 impl IntoBoxedMutex for AccessPoint<'_> {}
 impl IntoBoxedMutex for Disk<'_> {}
 impl IntoBoxedMutex for Display<'_> {}
-impl IntoBoxedMutex for AlarmOutput {}
+impl IntoBoxedMutex for AlarmOutputs {}
 
 pub trait IntoBoxedRwLock
 where Self: Sized {
@@ -29,4 +29,4 @@ impl<AlarmId> IntoBoxedRwLock for Clock<AlarmId> {}
 impl IntoBoxedRwLock for AccessPoint<'_> {}
 impl IntoBoxedRwLock for Disk<'_> {}
 impl IntoBoxedRwLock for Display<'_> {}
-impl IntoBoxedRwLock for AlarmOutput {}
+impl IntoBoxedRwLock for AlarmOutputs {}
