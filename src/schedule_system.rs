@@ -1,15 +1,17 @@
 pub mod alarm_id;
 mod error;
 
-use std::collections::HashMap;
+use crate::boxed_mutex::IntoBoxedMutex;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
+use crate::types::{AlarmOutput, BoxedMutex};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
+use clock::alarm::Alarm;
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use esp_idf_svc::hal::gpio::{Gpio2, Gpio4, OutputPin};
+use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -19,18 +21,17 @@ use interface::clock::{ReadClock, WriteClock};
 use interface::disk::{ReadDisk, WriteDisk};
 use interface::Path;
 use shared_bus::BusManagerStd;
-use std::sync::{Arc, Mutex};
-use clock::alarm::Alarm;
+use std::collections::HashMap;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
-type AlarmOutput = (Gpio2, Gpio4);
 
+/* Wrap fields into box to prevent stack overflowing. */
 pub struct ScheduleSystem {
-    access_point: Arc<Mutex<AccessPoint<'static>>>,
-    clock: Arc<Mutex<Clock<AlarmId>>>,
-    disk: Arc<Mutex<Disk<'static>>>,
-    display: Arc<Mutex<Display<'static>>>,
-    alarm_output: Arc<Mutex<AlarmOutput>>
+    access_point: BoxedMutex<AccessPoint<'static>>,
+    clock: BoxedMutex<Clock<AlarmId>>,
+    disk: BoxedMutex<Disk<'static>>,
+    display: BoxedMutex<Display<'static>>,
+    alarm_output: BoxedMutex<AlarmOutput>
 }
 
 impl ScheduleSystem {
@@ -57,38 +58,35 @@ impl ScheduleSystem {
         /* Init SDA driver */
 
 
-        let disk: Disk = Disk::new(spi_driver, cs)
-            .map_err(ScheduleSystemError::EspError)?;
-        let disk = Arc::new(Mutex::new(disk));
+        let disk: BoxedMutex<Disk> = Disk::new(spi_driver, cs)
+            .map_err(ScheduleSystemError::EspError)?
+            .into_boxed_mutex();
 
-        let access_point: AccessPoint = AccessPoint::new(peripherals.modem)
-            .map_err(ScheduleSystemError::EspError)?;
-        let access_point = Arc::new(Mutex::new(access_point));
+        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem)
+            .map_err(ScheduleSystemError::EspError)?
+            .into_boxed_mutex();
 
-        let display: Display = Display::new(i2c_bus_manager.acquire_i2c())
-            .map_err(ScheduleSystemError::DisplayError)?;
-        let display = Arc::new(Mutex::new(display));
+        let display: BoxedMutex<Display> = Display::new(i2c_bus_manager.acquire_i2c())
+            .map_err(ScheduleSystemError::DisplayError)?
+            .into_boxed_mutex();
 
-        let clock: Clock<AlarmId> = Clock::new(
+        let clock: BoxedMutex<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
-            |result| {
-                println!("Synchronizing...")
-            })
-            .map_err(ScheduleSystemError::ClockError)?;
-        let clock = Arc::new(Mutex::new(clock));
+            |result| println!("Synchronizing..."))
+            .map_err(ScheduleSystemError::ClockError)?
+            .into_boxed_mutex();
 
-        let alarm_output: AlarmOutput = (
+        let alarm_output: BoxedMutex<AlarmOutput> = (
             peripherals.pins.gpio2,
             peripherals.pins.gpio4,
-        );
-        let alarm_output = Arc::new(Mutex::new(alarm_output));
+        ).into_boxed_mutex();
 
         Ok(Self {
             access_point,
             clock,
             disk,
             display,
-            alarm_output
+            alarm_output,
         })
     }
 
