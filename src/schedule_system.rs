@@ -199,4 +199,20 @@ impl ScheduleSystem {
 
         Ok(alarms)
     }
+
+    pub fn remove_alarm(&self, alarm_id: &AlarmId) -> ScheduleSystemResult<()> {
+        self.clock
+            .write()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .remove_alarm(alarm_id)
+            .map_err(ScheduleSystemError::ClockError)
+    }
+
+    pub fn remove_alarms_by_output_index(&self, output_index: &OutputIndex) -> ScheduleSystemResult<()> {
+        self.clock
+            .write()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .remove_alarm_if(|alarm_id: &AlarmId| alarm_id.output_index == *output_index)
+            .map_err(ScheduleSystemError::ClockError)
+    }
 }

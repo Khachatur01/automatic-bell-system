@@ -96,12 +96,33 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
         Ok(())
     }
 
-    pub fn remove_alarm(&mut self, id: AlarmId) -> Result<(), ClockError> {
+    pub fn remove_alarm(&mut self, id: &AlarmId) -> Result<(), ClockError> {
         let _ = self
             .alarms
             .write()
             .map_err(|_| ClockError::MutexLockError)?
-            .remove(&id);
+            .remove(id);
+
+        Ok(())
+    }
+
+    pub fn remove_alarm_if<F>(&mut self, predicate: F) -> Result<(), ClockError>
+    where F: Fn(&AlarmId) -> bool {
+
+        let mut alarms: RwLockWriteGuard<Alarms<AlarmId>> = self
+            .alarms
+            .write()
+            .map_err(|_| ClockError::MutexLockError)?;
+
+        let removable_ids = alarms
+            .keys()
+            .filter(|alarm_id| predicate(alarm_id))
+            .map(Clone::clone)
+            .collect::<Vec<AlarmId>>();
+
+        for alarm_id in removable_ids {
+            alarms.remove(&alarm_id);
+        }
 
         Ok(())
     }

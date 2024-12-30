@@ -42,6 +42,12 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
         move |request| delete_alarm(request, &schedule_system_clone)
     )?;
 
+    let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
+    http_server.add_handler(
+        "/api/v1/alarms", Method::Delete,
+        move |request| delete_alarms_by_output_index(request, &schedule_system_clone)
+    )?;
+
     Ok(())
 }
 
@@ -92,7 +98,7 @@ fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc
             .map_err(|error| RequestError::General(error))?;
 
     let alarm: Alarm = request.read_all::<AlarmDTO>()?.into();
-    
+
     schedule_system
         .add_alarm(output_index, alarm)
         .map_err(|error| RequestError::General(error.to_string()))?;
@@ -101,7 +107,29 @@ fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc
 }
 
 fn delete_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    request.internal_server_error(&String::from(""))
+    let alarm_id: AlarmId =
+        request.parameters::<AlarmIdDTO>()?
+            .try_into()
+            .map_err(|error| RequestError::General(error))?;
+
+    schedule_system
+        .remove_alarm(&alarm_id)
+        .map_err(|error| RequestError::General(error.to_string()))?;
+
+    request.ok(&"Alarm removed")
+}
+
+fn delete_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    let output_index: OutputIndex =
+        request.parameters::<OutputIndexDTO>()?
+            .try_into()
+            .map_err(|error| RequestError::General(error))?;
+
+    schedule_system
+        .remove_alarms_by_output_index(&output_index)
+        .map_err(|error| RequestError::General(error.to_string()))?;
+
+    request.ok(&"Alarms removed")
 }
 
 
