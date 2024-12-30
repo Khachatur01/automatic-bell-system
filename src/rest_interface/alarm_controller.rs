@@ -1,8 +1,6 @@
-use std::collections::{HashMap, HashSet};
-use crate::rest_interface::alarm::model::alarm::{AlarmDTO, AlarmMarcherDTO};
-use crate::rest_interface::alarm::model::alarm_id::AlarmIdDTO;
 use crate::schedule_system::alarm_id::AlarmId;
-use crate::schedule_system::ScheduleSystem;
+use crate::schedule_system::model::output_index::OutputIndex;
+use crate::schedule_system::{to_alarms_with_id, ScheduleSystem};
 use clock::alarm::Alarm;
 use esp_idf_svc::http::server::{EspHttpConnection, Request};
 use esp_idf_svc::http::Method;
@@ -12,15 +10,18 @@ use http_request::RequestResult;
 use http_server::http_request;
 use http_server::http_request::{HttpRequest, RequestError};
 use http_server::http_server::HttpServer;
+use std::collections::HashMap;
 use std::sync::Arc;
-use crate::rest_interface::alarm::model::add_alarm::AddAlarmDTO;
-use crate::rest_interface::alarm::model::output_index::OutputIndexDTO;
-use crate::schedule_system::model::output_index::OutputIndex;
+use crate::model::alarm::alarm::AlarmDTO;
+use crate::model::alarm::alarm_id::AlarmIdDTO;
+use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
+use crate::model::alarm::output_index::OutputIndexDTO;
+use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/alarm", Method::Get,
+        "/api/v1/alarm_controller", Method::Get,
         move |request| get_alarm(request, &schedule_system_clone)
     )?;
 
@@ -32,13 +33,13 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/alarm", Method::Post,
+        "/api/v1/alarm_controller", Method::Post,
         move |request| add_alarm(request, &schedule_system_clone)
     )?;
 
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/alarm", Method::Delete,
+        "/api/v1/alarm_controller", Method::Delete,
         move |request| delete_alarm(request, &schedule_system_clone)
     )?;
 
@@ -56,14 +57,14 @@ fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
         request.parameters::<AlarmIdDTO>()?
             .try_into()
             .map_err(|error| RequestError::General(error))?;
-    
+
     let alarm: Alarm =
         schedule_system
             .get_alarm(&alarm_id)
             .map_err(|error| RequestError::General(error.to_string()))?;
-    
+
     let alarm_dto: AlarmDTO = alarm.into();
-    
+
     request.ok(&alarm_dto)
 }
 
@@ -72,23 +73,14 @@ fn get_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule
         request.parameters::<OutputIndexDTO>()?
             .try_into()
             .map_err(|error| RequestError::General(error))?;
-    
-    let alarms: HashMap<AlarmId, Alarm> =
+
+    let alarms_with_id_dto: Vec<AlarmWithIdDTO> =
         schedule_system
             .get_alarms_by_output_index(output_index)
-            .map_err(|error| RequestError::General(error.to_string()))?;
+            .map_err(|error| RequestError::General(error.to_string()))?
+            .to_alarms_with_id();
 
-    let alarms_dto: HashMap<String, AlarmDTO> = alarms
-        .into_iter()
-        .fold(HashMap::new(), |mut accumulator, (alarm_id, alarm)| {
-            let alarm_id_dto: AlarmIdDTO = alarm_id.into();
-            let alarm_id_json: String = serde_json::to_string(&alarm_id_dto).unwrap_or_default();
-
-            accumulator.insert(alarm_id_json, alarm.into());
-            accumulator
-        });
-
-    request.ok(&alarms_dto)
+    request.ok(&alarms_with_id_dto)
 }
 
 fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
@@ -130,14 +122,4 @@ fn delete_alarms_by_output_index(request: Request<&mut EspHttpConnection>, sched
         .map_err(|error| RequestError::General(error.to_string()))?;
 
     request.ok(&"Alarms removed")
-}
-
-
-fn alarms_to_dto(alarms: HashMap<AlarmId, Alarm>) -> HashMap<AlarmIdDTO, AlarmDTO> {
-    alarms
-        .into_iter()
-        .fold(HashMap::new(), |mut accumulator, (alarm_id, alarm)| {
-            accumulator.insert(alarm_id.into(), alarm.into());
-            accumulator
-        })
 }

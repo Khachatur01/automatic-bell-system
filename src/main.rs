@@ -2,7 +2,7 @@ mod schedule_system;
 mod rest_interface;
 mod web_interface;
 mod synchronizer;
-mod types;
+mod model;
 
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::hal::prelude::Peripherals;

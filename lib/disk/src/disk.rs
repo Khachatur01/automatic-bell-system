@@ -64,7 +64,7 @@ impl<'a> ReadDisk for Disk<'a> {
 }
 
 impl<'a> WriteDisk for Disk<'a> {
-    fn write_to_file(&mut self, path: &Path, data_buffer: &mut [u8]) -> DiskResult<()> {
+    fn write_to_file(&mut self, path: &Path, data_buffer: &[u8]) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 

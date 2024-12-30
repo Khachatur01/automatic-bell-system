@@ -10,7 +10,7 @@ pub trait ReadDisk {
 }
 
 pub trait WriteDisk {
-    fn write_to_file(&mut self, path: &Path, data_buffer: &mut [u8]) -> DiskResult<()>;
+    fn write_to_file(&mut self, path: &Path, data_buffer: &[u8]) -> DiskResult<()>;
 }
 
 pub trait ReadWriteDisk: ReadDisk + WriteDisk {}

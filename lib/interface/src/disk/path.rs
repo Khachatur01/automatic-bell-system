@@ -12,6 +12,14 @@ impl TryFrom<String> for Path {
     type Error = PathParseError;
 
     fn try_from(raw_path: String) -> Result<Self, Self::Error> {
+        raw_path.as_str().try_into()
+    }
+}
+
+impl TryFrom<&str> for Path {
+    type Error = PathParseError;
+
+    fn try_from(raw_path: &str) -> Result<Self, Self::Error> {
         if raw_path.is_empty() {
             return Err(EmptyPath);
         }
@@ -26,7 +34,10 @@ impl TryFrom<String> for Path {
 
         if let Some((directories_path, filename)) = raw_path.rsplit_once("/") {
             Ok(Self {
-                directories_path: directories_path.split("/").map(str::to_string).collect(),
+                directories_path: directories_path
+                    .split("/")
+                    .map(str::to_string)
+                    .collect(),
                 filename: filename.to_string()
             })
         } else {
