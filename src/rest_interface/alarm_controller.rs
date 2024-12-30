@@ -10,7 +10,6 @@ use http_request::RequestResult;
 use http_server::http_request;
 use http_server::http_request::{HttpRequest, RequestError};
 use http_server::http_server::HttpServer;
-use std::collections::HashMap;
 use std::sync::Arc;
 use crate::model::alarm::alarm::AlarmDTO;
 use crate::model::alarm::alarm_id::AlarmIdDTO;
@@ -21,7 +20,7 @@ use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/alarm_controller", Method::Get,
+        "/api/v1/alarm", Method::Get,
         move |request| get_alarm(request, &schedule_system_clone)
     )?;
 
@@ -33,13 +32,13 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/alarm_controller", Method::Post,
+        "/api/v1/alarm", Method::Post,
         move |request| add_alarm(request, &schedule_system_clone)
     )?;
 
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/alarm_controller", Method::Delete,
+        "/api/v1/alarm", Method::Delete,
         move |request| delete_alarm(request, &schedule_system_clone)
     )?;
 

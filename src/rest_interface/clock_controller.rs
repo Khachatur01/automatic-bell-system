@@ -14,13 +14,13 @@ use crate::model::clock::clock::ClockDTO;
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/clock_controller", Method::Get,
+        "/api/v1/clock", Method::Get,
         move |request| get_clock(request, &schedule_system_clone)
     )?;
 
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
-        "/api/v1/clock_controller", Method::Put,
+        "/api/v1/clock", Method::Put,
         move |request| set_clock(request, &schedule_system_clone)
     )?;
 

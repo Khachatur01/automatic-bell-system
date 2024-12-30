@@ -75,7 +75,8 @@ impl ScheduleSystem {
 
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
-            |result| println!("Synchronizing..."))
+            |result| println!("Synchronizing..."),
+            |alarm_id: &AlarmId, date_time| println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time),)
             .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_rwlock();
 
@@ -206,7 +207,7 @@ impl ScheduleSystem {
         let alarms = self.clock
             .write()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
-            .add_alarm(alarm_id, alarm, |alarm_id, date_time| {})
+            .add_alarm(alarm_id, alarm)
             .map_err(ScheduleSystemError::ClockError)?;
 
         self.write_alarms_to_disk()?;
@@ -239,65 +240,64 @@ impl ScheduleSystem {
     }
 
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
-        let mut disk = self
-            .disk
-            .lock()
-            .map_err(|_| ScheduleSystemError::MutexLockError)?;
-        let mut clock = self
-            .clock
-            .write()
-            .map_err(|_| ScheduleSystemError::MutexLockError)?;
-
-        let path: Path = Path::try_from(format!("{ALARMS_LOCATION}/{ALARMS_FILE_NAME}"))
-            .map_err(ScheduleSystemError::PathParseError)?;
-
-        let alarms_json_buffer: Vec<u8> = disk
-            .read_from_file(&path)
-            .map_err(ScheduleSystemError::DiskError)?;
-        let alarms_json: String = String::from_utf8_lossy(&alarms_json_buffer).to_string();
-
-        let alarms: Vec<AlarmWithIdDTO> = serde_json::from_str(&alarms_json)
-            .map_err(ScheduleSystemError::SerdeError)?;
-
-        clock.clear_all_alarms()
-            .map_err(ScheduleSystemError::ClockError)?;
-
-        for alarm in alarms {
-            let alarm_id: AlarmId = alarm
-                .id
-                .try_into()
-                .map_err(ScheduleSystemError::AlarmIdParseError)?;
-
-            clock.add_alarm(alarm_id,
-                            alarm.alarm.into(),
-                            |alarm_id, date_time| println!("Alarming {:?}, {date_time}", *alarm_id)
-            ).map_err(ScheduleSystemError::ClockError)?;
-        }
+        // let mut disk = self
+        //     .disk
+        //     .lock()
+        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
+        // let mut clock = self
+        //     .clock
+        //     .write()
+        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
+        // 
+        // let path: Path = Path::try_from(format!("{ALARMS_LOCATION}/{ALARMS_FILE_NAME}"))
+        //     .map_err(ScheduleSystemError::PathParseError)?;
+        // 
+        // let alarms_json_buffer: Vec<u8> = disk
+        //     .read_from_file(&path)
+        //     .map_err(ScheduleSystemError::DiskError)?;
+        // let alarms_json: String = String::from_utf8_lossy(&alarms_json_buffer).to_string();
+        // 
+        // let alarms: Vec<AlarmWithIdDTO> = serde_json::from_str(&alarms_json)
+        //     .map_err(ScheduleSystemError::SerdeError)?;
+        // 
+        // clock.clear_all_alarms()
+        //     .map_err(ScheduleSystemError::ClockError)?;
+        // 
+        // for alarm in alarms {
+        //     let alarm_id: AlarmId = alarm
+        //         .id
+        //         .try_into()
+        //         .map_err(ScheduleSystemError::AlarmIdParseError)?;
+        // 
+        //     clock
+        //         .add_alarm(alarm_id, alarm.alarm.into())
+        //         .map_err(ScheduleSystemError::ClockError)?;
+        // }
 
         Ok(())
     }
 
     fn write_alarms_to_disk(&self) -> ScheduleSystemResult<()> {
-        let mut disk = self
-            .disk
-            .lock()
-            .map_err(|_| ScheduleSystemError::MutexLockError)?;
-        let clock = self
-            .clock
-            .read()
-            .map_err(|_| ScheduleSystemError::MutexLockError)?;
-
-        let alarms: Vec<AlarmWithIdDTO> = clock.get_alarms()
-            .map_err(ScheduleSystemError::ClockError)?
-            .to_alarms_with_id();
-
-        let alarms_json: String = serde_json::to_string(&alarms)
-            .map_err(ScheduleSystemError::SerdeError)?;
-
-        let path: Path = Path::try_from(format!("{ALARMS_LOCATION}/{ALARMS_FILE_NAME}"))
-            .map_err(ScheduleSystemError::PathParseError)?;
-        disk.write_to_file(&path, &alarms_json.as_bytes())
-            .map_err(ScheduleSystemError::DiskError)?;
+        // let mut disk = self
+        //     .disk
+        //     .lock()
+        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
+        // let clock = self
+        //     .clock
+        //     .read()
+        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
+        // 
+        // let alarms: Vec<AlarmWithIdDTO> = clock.get_alarms()
+        //     .map_err(ScheduleSystemError::ClockError)?
+        //     .to_alarms_with_id();
+        // 
+        // let alarms_json: String = serde_json::to_string(&alarms)
+        //     .map_err(ScheduleSystemError::SerdeError)?;
+        // 
+        // let path: Path = Path::try_from(format!("{ALARMS_LOCATION}/{ALARMS_FILE_NAME}"))
+        //     .map_err(ScheduleSystemError::PathParseError)?;
+        // disk.write_to_file(&path, &alarms_json.as_bytes())
+        //     .map_err(ScheduleSystemError::DiskError)?;
 
         Ok(())
     }

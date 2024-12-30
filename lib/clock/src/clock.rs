@@ -21,7 +21,7 @@ type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
 type Driver<'a> = Ds323x<I2cInterface<I2cSharedProxy<'a>>, ic::DS3231>;
 
 type Callback<AlarmId> = dyn Fn(&AlarmId, &DateTime<Utc>) + Send + Sync + 'static;
-type Alarms<AlarmId> = HashMap<AlarmId, (Alarm, Box<Callback<AlarmId>>)>;
+type Alarms<AlarmId> = HashMap<AlarmId, Alarm>;
 
 
 struct Api {
@@ -33,13 +33,16 @@ pub struct Clock<AlarmId> {
     api: Arc<RwLock<Api>>,
     alarms: Arc<RwLock<Alarms<AlarmId>>>,
     shutdown: Arc<RwLock<AtomicBool>>,
+    on_alarm: Arc<RwLock<Box<Callback<AlarmId>>>>
 }
 
 impl<AlarmId> Clock<AlarmId>
 where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
-    pub fn new<OnSynchronize>(i2c_shared_proxy: I2cSharedProxy<'static>,
-                              on_synchronize: OnSynchronize) -> Result<Self, ClockError>
-    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
+    pub fn new<OnSynchronize, OnAlarm>(i2c_shared_proxy: I2cSharedProxy<'static>,
+                              on_synchronize: OnSynchronize,
+                              on_alarm: OnAlarm) -> Result<Self, ClockError>
+    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
+          OnAlarm: Fn(&AlarmId, &DateTime<Utc>) + Send + Sync + 'static, {
 
         let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
@@ -54,6 +57,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             api: Arc::new(RwLock::new(api)),
             alarms: Arc::new(RwLock::new(HashMap::new())),
             shutdown: Arc::new(RwLock::new(AtomicBool::new(false))),
+            on_alarm: Arc::new(RwLock::new(Box::new(on_alarm))),
         };
 
         this.start_alarm_matching(on_synchronize);
@@ -68,7 +72,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             .map_err(|_| ClockError::MutexLockError)?
             .iter()
             /* collect alarms into new hashmap to remove callbacks */
-            .fold(HashMap::new(), |mut accumulator, (alarm_id, (alarm, _))| {
+            .fold(HashMap::new(), |mut accumulator, (alarm_id, alarm)| {
                 accumulator.insert(alarm_id.clone(), alarm.clone());
                 accumulator
             });
@@ -82,16 +86,16 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             .read()
             .map_err(|_| ClockError::MutexLockError)?
             .get(id)
-            .map(|(alarm, _)| alarm.clone())
+            .map(Clone::clone)
             .ok_or(ClockError::AlarmNotFound)
     }
 
-    pub fn add_alarm(&mut self, id: AlarmId, alarm: Alarm, callback: fn(&AlarmId, &DateTime<Utc>)) -> Result<(), ClockError> {
+    pub fn add_alarm(&mut self, id: AlarmId, alarm: Alarm) -> Result<(), ClockError> {
         let _ = self
             .alarms
             .write()
             .map_err(|_| ClockError::MutexLockError)?
-            .insert(id, (alarm, Box::new(callback)));
+            .insert(id, alarm);
 
         Ok(())
     }
@@ -144,6 +148,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
         let api_lock: Arc<RwLock<Api>> = Arc::clone(&self.api);
         let alarms_lock: Arc<RwLock<Alarms<AlarmId>>> = Arc::clone(&self.alarms);
         let shutdown_lock: Arc<RwLock<AtomicBool>> = Arc::clone(&self.shutdown);
+        let on_alarm = Arc::clone(&self.on_alarm);
 
         thread::spawn(move || loop {
             /* lock(read) api to read current time */
@@ -160,11 +165,11 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             };
 
             /* check matching alarms */
-            if let Ok(alarms) = alarms_lock.read() {
+            if let (Ok(alarms), Ok(on_alarm)) = (alarms_lock.read(), on_alarm.read()) {
                 alarms
                     .iter()
-                    .filter(|(id, (alarm, _))| alarm.matches(&datetime))
-                    .for_each(|(id, (_, callback))| callback(id, &datetime));
+                    .filter(|(id, alarm)| alarm.matches(&datetime))
+                    .for_each(|(id, alarm)| on_alarm(id, &datetime));
             }
 
             /* lock(write) api to synchronize time every hour */
