@@ -8,10 +8,15 @@ use esp_idf_svc::sys::EspError;
 use interface::disk::{DiskResult, ReadDisk, WriteDisk};
 use interface::Path;
 
+const MAX_DIRS: usize = 4;
+const MAX_FILES: usize =4;
+const MAX_VOLUMES: usize = 1;
+
+
 type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
-type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
-type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
-type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, 4, 4, 1>;
+type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
 
 
 pub struct SdMmcClock;
