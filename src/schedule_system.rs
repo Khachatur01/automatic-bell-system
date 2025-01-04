@@ -7,14 +7,14 @@ use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
 use crate::schedule_system::model::output_index::OutputIndex;
 use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
-use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock};
+use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock, IntoMutexOutputPin, MutexOutputPin};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
 use clock::alarm::Alarm;
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use esp_idf_svc::hal::gpio::OutputPin;
+use esp_idf_svc::hal::gpio::{AnyOutputPin, OutputPin, Pin};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -26,10 +26,12 @@ use interface::Path;
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use uuid::Uuid;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
+type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
 
 const ALARMS_LOCATION: &str = "/alarms";
 const ALARMS_FILE_NAME: &str = "a.jso";
@@ -67,29 +69,25 @@ impl ScheduleSystem {
         let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).map_err(ScheduleSystemError::EspError)?;
         /* Init SDA driver */
 
-
-        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem)
-            .map_err(ScheduleSystemError::EspError)?
-            .into_boxed_mutex();
+        let alarm_output_pins: Vec<MutexOutputPin> = vec![
+            Into::<AnyOutputPin>::into(peripherals.pins.gpio2)
+                .try_into_mutex_output_pin()
+                .map_err(ScheduleSystemError::EspError)?,
+            Into::<AnyOutputPin>::into(peripherals.pins.gpio4)
+                .try_into_mutex_output_pin()
+                .map_err(ScheduleSystemError::EspError)?,
+        ];
 
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
             |result| println!("Synchronizing..."),
-            |alarm_id: &AlarmId, date_time| {
-                println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
-
-                match *alarm_id.output_index {
-                    output_index @ 0 => {
-                        println!("Alarm output index set to {}", output_index);
-                    }
-                    output_index @ 1 => {
-                        println!("Alarm output index set to {}", output_index);
-                    }
-                    _ => {}
-                };
-            })
+            move |alarm_id: &AlarmId, date_time| ScheduleSystem::on_alarm(alarm_id, date_time, &alarm_output_pins))
             .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_rwlock();
+
+        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem)
+            .map_err(ScheduleSystemError::EspError)?
+            .into_boxed_mutex();
 
         let disk: BoxedMutex<Disk> = Disk::new(spi_driver, cs)
             .map_err(ScheduleSystemError::EspError)?
@@ -240,10 +238,6 @@ impl ScheduleSystem {
         self.write_alarms_to_disk()
     }
 
-    fn on_alarm(&self, alarm_id: &AlarmId, date_time: &DateTime<Utc>) {
-        
-    }
-
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
         // let mut disk = self
         //     .disk
@@ -305,5 +299,23 @@ impl ScheduleSystem {
         //     .map_err(ScheduleSystemError::DiskError)?;
 
         Ok(())
+    }
+
+
+    fn on_alarm(alarm_id: &AlarmId, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
+        println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
+
+        let output_index: usize = *alarm_id.output_index as usize;
+
+        if let Some(output_pin) = alarm_output_pins.get(output_index) {
+            /* Using try_lock(). Ignore alarm if output is already locked. */
+            if let Ok(mut output_pin_driver) = output_pin.try_lock() {
+                let _ = output_pin_driver.set_high();
+
+                thread::sleep(Duration::from_secs(5));
+
+                let _ = output_pin_driver.set_low();
+            }
+        };
     }
 }
