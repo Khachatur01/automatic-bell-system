@@ -3,9 +3,11 @@ pub mod model;
 pub mod to_alarms_with_id;
 mod error;
 
-use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock};
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
+use crate::schedule_system::model::output_index::OutputIndex;
+use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
+use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
 use clock::alarm::Alarm;
@@ -20,14 +22,12 @@ use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use interface::clock::{ReadClock, WriteClock};
 use interface::disk::{ReadDisk, WriteDisk};
-use interface::{ClockError, Path, PathParseError};
+use interface::Path;
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
-use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
-use crate::schedule_system::model::alarm_outputs::AlarmOutputs;
-use crate::schedule_system::model::output_index::OutputIndex;
-use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 
@@ -42,7 +42,6 @@ pub struct ScheduleSystem {
     clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
     display: BoxedMutex<Display<'static>>,
-    alarm_output: BoxedMutex<AlarmOutputs>
 }
 
 impl ScheduleSystem {
@@ -52,9 +51,9 @@ impl ScheduleSystem {
         let sda = peripherals.pins.gpio22;
         let scl = peripherals.pins.gpio23;
         let i2c_config = I2cConfig::default();
-        let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).unwrap();
+        let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).map_err(ScheduleSystemError::EspError)?;
 
-        let i2c_bus_manager: &'static BusManagerStd<I2cDriver> = shared_bus::new_std!(I2cDriver = i2c_driver).unwrap();
+        let i2c_bus_manager: &'static BusManagerStd<I2cDriver> = shared_bus::new_std!(I2cDriver = i2c_driver).ok_or(ScheduleSystemError::I2cSharedBusError)?;
         /* Init I2c bus */
 
         /* Init SPI driver */
@@ -65,7 +64,7 @@ impl ScheduleSystem {
         let cs = peripherals.pins.gpio5;
 
         let driver_config: DriverConfig = DriverConfig::default();
-        let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).unwrap();
+        let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).map_err(ScheduleSystemError::EspError)?;
         /* Init SDA driver */
 
 
@@ -76,7 +75,19 @@ impl ScheduleSystem {
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
             |result| println!("Synchronizing..."),
-            |alarm_id: &AlarmId, date_time| println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time),)
+            |alarm_id: &AlarmId, date_time| {
+                println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
+
+                match *alarm_id.output_index {
+                    output_index @ 0 => {
+                        println!("Alarm output index set to {}", output_index);
+                    }
+                    output_index @ 1 => {
+                        println!("Alarm output index set to {}", output_index);
+                    }
+                    _ => {}
+                };
+            })
             .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_rwlock();
 
@@ -88,17 +99,11 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::DisplayError)?
             .into_boxed_mutex();
 
-        let alarm_output: BoxedMutex<AlarmOutputs> = (
-            peripherals.pins.gpio2,
-            peripherals.pins.gpio4,
-        ).into_boxed_mutex();
-
         let this: Self = Self {
             access_point,
             clock,
             disk,
             display,
-            alarm_output,
         };
 
         this.synchronize_alarms_from_disk()?;

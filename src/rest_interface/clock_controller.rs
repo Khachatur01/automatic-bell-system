@@ -28,7 +28,12 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 }
 
 fn get_clock(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let timestamp_millis: i64 = schedule_system.get_time().unwrap().timestamp_millis();
+    let timestamp_millis: i64 =
+        match schedule_system.get_time() {
+            Ok(datetime) => datetime.timestamp_millis(),
+            Err(error) => return request.bad_request(&error.to_string())
+        };
+
     let clock_dto = ClockDTO { timestamp_millis };
 
     request.ok(&clock_dto)

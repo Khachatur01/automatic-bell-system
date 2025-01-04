@@ -8,6 +8,7 @@ use embedded_sdmmc::sdcard::Error as SDCardError;
 #[derive(Debug)]
 pub enum ScheduleSystemError {
     EspError(EspError),
+    I2cSharedBusError,
     AlarmIdParseError(String),
     ClockError(ClockError),
     DisplayError(DisplayError),

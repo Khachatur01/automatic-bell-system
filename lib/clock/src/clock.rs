@@ -33,16 +33,15 @@ pub struct Clock<AlarmId> {
     api: Arc<RwLock<Api>>,
     alarms: Arc<RwLock<Alarms<AlarmId>>>,
     shutdown: Arc<RwLock<AtomicBool>>,
-    on_alarm: Arc<RwLock<Box<Callback<AlarmId>>>>
 }
 
 impl<AlarmId> Clock<AlarmId>
 where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
     pub fn new<OnSynchronize, OnAlarm>(i2c_shared_proxy: I2cSharedProxy<'static>,
-                              on_synchronize: OnSynchronize,
-                              on_alarm: OnAlarm) -> Result<Self, ClockError>
+                                       on_synchronize: OnSynchronize,
+                                       on_alarm: OnAlarm) -> Result<Self, ClockError>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
-          OnAlarm: Fn(&AlarmId, &DateTime<Utc>) + Send + Sync + 'static, {
+          OnAlarm: Fn(&AlarmId, &DateTime<Utc>) + Send + 'static, {
 
         let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
@@ -56,11 +55,10 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
         let mut this: Self = Self {
             api: Arc::new(RwLock::new(api)),
             alarms: Arc::new(RwLock::new(HashMap::new())),
-            shutdown: Arc::new(RwLock::new(AtomicBool::new(false))),
-            on_alarm: Arc::new(RwLock::new(Box::new(on_alarm))),
+            shutdown: Arc::new(RwLock::new(AtomicBool::new(false)))
         };
 
-        this.start_alarm_matching(on_synchronize);
+        this.start_alarm_matching(on_synchronize, on_alarm);
 
         Ok(this)
     }
@@ -141,14 +139,15 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
         Ok(())
     }
 
-    fn start_alarm_matching<OnSynchronize>(&mut self,
-                                           on_synchronize: OnSynchronize) -> JoinHandle<()>
-    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static {
+    fn start_alarm_matching<OnSynchronize, OnAlarm>(&mut self,
+                                                    on_synchronize: OnSynchronize,
+                                                    on_alarm: OnAlarm) -> JoinHandle<()>
+    where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
+          OnAlarm: Fn(&AlarmId, &DateTime<Utc>) + Send + 'static, {
 
         let api_lock: Arc<RwLock<Api>> = Arc::clone(&self.api);
         let alarms_lock: Arc<RwLock<Alarms<AlarmId>>> = Arc::clone(&self.alarms);
         let shutdown_lock: Arc<RwLock<AtomicBool>> = Arc::clone(&self.shutdown);
-        let on_alarm = Arc::clone(&self.on_alarm);
 
         thread::spawn(move || loop {
             /* lock(read) api to read current time */
@@ -165,7 +164,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             };
 
             /* check matching alarms */
-            if let (Ok(alarms), Ok(on_alarm)) = (alarms_lock.read(), on_alarm.read()) {
+            if let Ok(alarms) = alarms_lock.read() {
                 alarms
                     .iter()
                     .filter(|(id, alarm)| alarm.matches(&datetime))
