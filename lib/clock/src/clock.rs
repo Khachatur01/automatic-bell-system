@@ -41,7 +41,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
                                        on_synchronize: OnSynchronize,
                                        on_alarm: OnAlarm) -> Result<Self, ClockError>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
-          OnAlarm: Fn(&AlarmId, &DateTime<Utc>) + Send + 'static, {
+          OnAlarm: Fn(&AlarmId, &Alarm, &DateTime<Utc>) + Send + 'static, {
 
         let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
@@ -143,7 +143,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
                                                     on_synchronize: OnSynchronize,
                                                     on_alarm: OnAlarm) -> JoinHandle<()>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
-          OnAlarm: Fn(&AlarmId, &DateTime<Utc>) + Send + 'static, {
+          OnAlarm: Fn(&AlarmId, &Alarm, &DateTime<Utc>) + Send + 'static, {
 
         let api_lock: Arc<RwLock<Api>> = Arc::clone(&self.api);
         let alarms_lock: Arc<RwLock<Alarms<AlarmId>>> = Arc::clone(&self.alarms);
@@ -168,7 +168,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
                 alarms
                     .iter()
                     .filter(|(id, alarm)| alarm.matches(&datetime))
-                    .for_each(|(id, alarm)| on_alarm(id, &datetime));
+                    .for_each(|(id, alarm)| on_alarm(id, alarm, &datetime));
             }
 
             /* lock(write) api to synchronize time every hour */

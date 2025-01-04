@@ -20,6 +20,9 @@ pub struct Alarm {
     pub hour: AlarmMarcher<u8>,
     pub minute: AlarmMarcher<u8>,
     pub second: AlarmMarcher<u8>,
+
+    /* Impulse length in milliseconds when alarm triggered. */
+    pub impulse_length_millis: u64,
 }
 
 impl Alarm {

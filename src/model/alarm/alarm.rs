@@ -165,6 +165,8 @@ pub struct AlarmDTO {
     pub hour: AlarmMarcherDTO<u8>,
     pub minute: AlarmMarcherDTO<u8>,
     pub second: AlarmMarcherDTO<u8>,
+
+    pub impulse_length_millis: u64,
 }
 
 impl From<AlarmDTO> for Alarm {
@@ -178,6 +180,8 @@ impl From<AlarmDTO> for Alarm {
             hour: alarm_dto.hour.into(),
             minute: alarm_dto.minute.into(),
             second: alarm_dto.second.into(),
+
+            impulse_length_millis: alarm_dto.impulse_length_millis,
         }
     }
 }
@@ -193,6 +197,8 @@ impl From<Alarm> for AlarmDTO {
             hour: alarm.hour.into(),
             minute: alarm.minute.into(),
             second: alarm.second.into(),
+
+            impulse_length_millis: alarm.impulse_length_millis,
         }
     }
 }

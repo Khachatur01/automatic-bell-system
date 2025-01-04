@@ -81,7 +81,7 @@ impl ScheduleSystem {
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
             |result| println!("Synchronizing..."),
-            move |alarm_id: &AlarmId, date_time| ScheduleSystem::on_alarm(alarm_id, date_time, &alarm_output_pins))
+            move |alarm_id: &AlarmId, alarm: &Alarm, date_time| ScheduleSystem::on_alarm(alarm_id, alarm, date_time, &alarm_output_pins))
             .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_rwlock();
 
@@ -302,20 +302,22 @@ impl ScheduleSystem {
     }
 
 
-    fn on_alarm(alarm_id: &AlarmId, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
+    fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
+        /* fixme: remove print statement */
         println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
 
         let output_index: usize = *alarm_id.output_index as usize;
 
-        if let Some(output_pin) = alarm_output_pins.get(output_index) {
-            /* Using try_lock(). Ignore alarm if output is already locked. */
-            if let Ok(mut output_pin_driver) = output_pin.try_lock() {
-                let _ = output_pin_driver.set_high();
-
-                thread::sleep(Duration::from_secs(5));
-
-                let _ = output_pin_driver.set_low();
-            }
+        let Some(output_pin) = alarm_output_pins.get(output_index) else {
+            return;;
         };
+
+        let Ok(mut output_pin_driver) = output_pin.try_lock() else {
+            return;
+        };
+
+        let _ = output_pin_driver.set_high();
+        thread::sleep(Duration::from_millis(alarm.impulse_length_millis));
+        let _ = output_pin_driver.set_low();
     }
 }
