@@ -110,6 +110,27 @@ impl ScheduleSystem {
     }
 
 
+    fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
+        /* fixme: remove print statement */
+        println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
+
+        let output_index: usize = *alarm_id.output_index as usize;
+
+        let Some(output_pin) = alarm_output_pins.get(output_index) else {
+            return;;
+        };
+
+        let Ok(mut output_pin_driver) = output_pin.try_lock() else {
+            return;
+        };
+
+        let _ = output_pin_driver.set_high();
+        thread::sleep(Duration::from_millis(alarm.impulse_length_millis));
+        let _ = output_pin_driver.set_low();
+    }
+}
+
+impl ScheduleSystem {
     pub fn enable_access_point(&self) -> ScheduleSystemResult<()> {
         self.access_point
             .lock()
@@ -129,8 +150,9 @@ impl ScheduleSystem {
 
         Ok(())
     }
+}
 
-
+impl ScheduleSystem {
     pub fn read_from_file(&self, path: &Path) -> ScheduleSystemResult<Vec<u8>> {
         self.disk
             .lock()
@@ -146,8 +168,9 @@ impl ScheduleSystem {
             .write_to_file(path, data_buffer)
             .map_err(ScheduleSystemError::DiskError)
     }
+}
 
-
+impl ScheduleSystem {
     pub fn get_time(&self) -> ScheduleSystemResult<DateTime<Utc>> {
         self.clock
             .read()
@@ -237,6 +260,9 @@ impl ScheduleSystem {
 
         self.write_alarms_to_disk()
     }
+}
+
+impl ScheduleSystem {
 
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
         // let mut disk = self
@@ -299,25 +325,5 @@ impl ScheduleSystem {
         //     .map_err(ScheduleSystemError::DiskError)?;
 
         Ok(())
-    }
-
-
-    fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
-        /* fixme: remove print statement */
-        println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
-
-        let output_index: usize = *alarm_id.output_index as usize;
-
-        let Some(output_pin) = alarm_output_pins.get(output_index) else {
-            return;;
-        };
-
-        let Ok(mut output_pin_driver) = output_pin.try_lock() else {
-            return;
-        };
-
-        let _ = output_pin_driver.set_high();
-        thread::sleep(Duration::from_millis(alarm.impulse_length_millis));
-        let _ = output_pin_driver.set_low();
     }
 }
