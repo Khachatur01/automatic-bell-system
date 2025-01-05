@@ -130,6 +130,7 @@ impl ScheduleSystem {
     }
 }
 
+/* access point */
 impl ScheduleSystem {
     pub fn enable_access_point(&self) -> ScheduleSystemResult<()> {
         self.access_point
@@ -152,6 +153,7 @@ impl ScheduleSystem {
     }
 }
 
+/* disk */
 impl ScheduleSystem {
     pub fn read_from_file(&self, path: &Path) -> ScheduleSystemResult<Vec<u8>> {
         self.disk
@@ -170,6 +172,7 @@ impl ScheduleSystem {
     }
 }
 
+/* clock */
 impl ScheduleSystem {
     pub fn get_time(&self) -> ScheduleSystemResult<DateTime<Utc>> {
         self.clock
@@ -262,6 +265,7 @@ impl ScheduleSystem {
     }
 }
 
+/* disk synchronization */
 impl ScheduleSystem {
 
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
