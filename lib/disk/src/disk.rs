@@ -1,4 +1,4 @@
-use embedded_sdmmc::{Mode, SdCard, TimeSource, Timestamp, VolumeIdx, VolumeManager};
+use embedded_sdmmc::{Mode, SdCard, TimeSource, Timestamp, VolumeIdx};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::peripheral::Peripheral;
@@ -8,12 +8,13 @@ use esp_idf_svc::sys::EspError;
 use interface::disk::{DiskResult, ReadDisk, WriteDisk};
 use interface::Path;
 
-const MAX_DIRS: usize = 4;
-const MAX_FILES: usize =4;
+const MAX_DIRS: usize = 16;
+const MAX_FILES: usize = 16;
 const MAX_VOLUMES: usize = 1;
 
 
 type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
+type VolumeManager<'a> = embedded_sdmmc::VolumeManager<BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
 type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
 type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
 type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
@@ -35,7 +36,7 @@ impl TimeSource for SdMmcClock {
 }
 
 pub struct Disk<'a> {
-    volume_manager: VolumeManager<BlockDevice<'a>, SdMmcClock>
+    volume_manager: VolumeManager<'a>
 }
 
 impl<'a> Disk<'a> {
@@ -46,7 +47,7 @@ impl<'a> Disk<'a> {
         let spi_device_driver: SpiDeviceDriver<SpiDriver> = SpiDeviceDriver::new(spi_driver, Some(cs), &spi_config)?;
         let sdcard: SdCard<SpiDeviceDriver<SpiDriver>, FreeRtos> = SdCard::new(spi_device_driver, FreeRtos);
 
-        Ok(Self { volume_manager: VolumeManager::new(sdcard, SdMmcClock) })
+        Ok(Self { volume_manager: VolumeManager::new_with_limits(sdcard, SdMmcClock, 5000) })
     }
 }
 
