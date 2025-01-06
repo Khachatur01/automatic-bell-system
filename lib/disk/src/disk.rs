@@ -13,11 +13,11 @@ const MAX_FILES: usize = 16;
 const MAX_VOLUMES: usize = 1;
 
 
-type BlockDevice<'a> = SdCard<SpiDeviceDriver<'a, SpiDriver<'a>>, FreeRtos>;
-type VolumeManager<'a> = embedded_sdmmc::VolumeManager<BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
-type Volume<'a, 'b> = embedded_sdmmc::Volume<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
-type Directory<'a, 'b> = embedded_sdmmc::Directory<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
-type File<'a, 'b> = embedded_sdmmc::File<'b, BlockDevice<'a>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type BlockDevice<'spi> = SdCard<SpiDeviceDriver<'spi, SpiDriver<'spi>>, FreeRtos>;
+type VolumeManager<'bd> = embedded_sdmmc::VolumeManager<BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type Volume<'bd, 'vol> = embedded_sdmmc::Volume<'vol, BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type Directory<'bd, 'dir> = embedded_sdmmc::Directory<'dir, BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type File<'bd, 'file> = embedded_sdmmc::File<'file, BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
 
 
 pub struct SdMmcClock;
@@ -35,12 +35,16 @@ impl TimeSource for SdMmcClock {
     }
 }
 
-pub struct Disk<'a> {
-    volume_manager: VolumeManager<'a>
+pub struct DiskDirectory<'a, 'b> {
+    directory: Directory<'a, 'b>
 }
 
-impl<'a> Disk<'a> {
-    pub fn new<CS: Peripheral<P = impl OutputPin> + 'a>(spi_driver: SpiDriver<'a>, cs: CS) -> Result<Self, EspError> {
+pub struct Disk<'bd> {
+    volume_manager: VolumeManager<'bd>
+}
+
+impl<'bd> Disk<'bd> {
+    pub fn new<CS: Peripheral<P = impl OutputPin> + 'bd>(spi_driver: SpiDriver<'bd>, cs: CS) -> Result<Self, EspError> {
         let mut spi_config = SpiConfig::new();
         spi_config.duplex = Duplex::Full;
 
@@ -48,6 +52,17 @@ impl<'a> Disk<'a> {
         let sdcard: SdCard<SpiDeviceDriver<SpiDriver>, FreeRtos> = SdCard::new(spi_device_driver, FreeRtos);
 
         Ok(Self { volume_manager: VolumeManager::new_with_limits(sdcard, SdMmcClock, 5000) })
+    }
+
+    pub fn open_dir(&mut self, path: &Path) -> DiskResult<Directory> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
+
+        Ok(directory)
     }
 }
 
