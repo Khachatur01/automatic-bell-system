@@ -2,6 +2,7 @@ use esp_idf_svc::http::server::{Connection, Request, Response};
 use esp_idf_svc::io::Write;
 use serde::de::{DeserializeOwned, Error as _};
 use serde::{Serialize};
+use crate::to_response_data::ToResponseData;
 
 fn status_response<'a, C, Data>(mut request: Request<C>,
                                 status: u16,
@@ -9,18 +10,17 @@ fn status_response<'a, C, Data>(mut request: Request<C>,
                                 message: &'a str,
                                 headers: &'a [(&'a str, &'a str)],) -> RequestResult<(), C::Error>
 where C: Connection,
-      Data: Serialize {
+      Data: ToResponseData {
 
     let mut response: Response<C> = request
         .into_response(status, Some(message), headers)
         .map_err(RequestError::Connection)?;
 
-    let json_data: String = serde_json::to_string(data)
-        .map_err(RequestError::SerdeJson)?;
+    let response_str = data.to_response_data();
 
-    let data: &[u8] = json_data.as_bytes();
+    let response_data: &[u8] = response_str.as_bytes();
 
-    response.write_all(data)
+    response.write_all(response_data)
         .map_err(RequestError::Connection)?;
 
     Ok(())
@@ -36,39 +36,52 @@ pub enum RequestError<ConnectionError> {
 
 pub type RequestResult<V, ConnectionError> = Result<V, RequestError<ConnectionError>>;
 
-pub trait HttpRequest<C>
-where C: Connection {
-    fn ok<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
-
-    fn bad_request<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
-
-    fn not_found<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
-
-    fn internal_server_error<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error>;
-
-    fn parameters<Parameters: DeserializeOwned>(&self) -> RequestResult<Parameters, C::Error>;
-
-    fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
+pub enum ResponseData<Data: Serialize + ToString> {
+    Json(Data),
+    Str(Data),
 }
 
-impl<C> HttpRequest<C> for Request<C>
+////////////////////////////////////////////////////////////////////////////////////////////////////
+pub trait IntoResponse<C>
+where C: Connection,
+      Self: Sized {
+    fn ok<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
+
+    fn bad_request<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
+
+    fn not_found<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
+
+    fn internal_server_error<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
+}
+
+impl<C> IntoResponse<C> for Request<C>
 where C: Connection {
-    fn ok<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
+    fn ok<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 200, data, "Ok", &[])
     }
 
-    fn bad_request<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
+    fn bad_request<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 400, data, "Bad Request", &[])
     }
 
-    fn not_found<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
+    fn not_found<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 404, data, "Not found", &[])
     }
 
-    fn internal_server_error<Data: Serialize>(self, data: &Data) -> RequestResult<(), C::Error> {
+    fn internal_server_error<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 500, data, "Internal Server Error", &[])
     }
+}
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+pub trait ReadParameters<C>
+where C: Connection {
+    fn parameters<Parameters: DeserializeOwned>(&self) -> RequestResult<Parameters, C::Error>;
+}
+
+impl<C> ReadParameters<C> for Request<C>
+where C: Connection {
     /**
     * URI example: /api/v1/resource?param1=value1&param2=value2
     * Method serde_urlencoded::from_str() gets string containing everything after '?' symbol.
@@ -82,7 +95,17 @@ where C: Connection {
             Err(RequestError::SerdeURL(serde_urlencoded::de::Error::custom(message)))
         }
     }
+}
 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+pub trait ReadData<C>
+where C: Connection {
+    fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
+}
+
+impl<C> ReadData<C> for Request<C>
+where C: Connection {
     fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error> {
         let content_length: usize = self
             .header("Content-Length")

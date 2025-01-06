@@ -1,5 +1,9 @@
+use std::fmt::Display;
 use crate::schedule_system::alarm_id::AlarmId;
 use serde::{Deserialize, Serialize};
+use http_server::to_response_data::ToResponseData;
+
+impl ToResponseData for AlarmIdDTO {}
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct AlarmIdDTO {

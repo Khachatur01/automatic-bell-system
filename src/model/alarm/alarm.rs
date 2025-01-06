@@ -2,7 +2,9 @@ use chrono::{Month, Weekday};
 use clock::alarm::{Alarm, AlarmMarcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::hash::Hash;
+use http_server::to_response_data::ToResponseData;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum WeekdayDTO {
@@ -14,6 +16,8 @@ pub enum WeekdayDTO {
     Saturday,
     Sunday,
 }
+
+impl ToResponseData for WeekdayDTO {}
 
 impl From<WeekdayDTO> for Weekday {
     fn from(weekday_dto: WeekdayDTO) -> Self {
@@ -60,6 +64,8 @@ pub enum MonthDTO {
     December,
 }
 
+impl ToResponseData for MonthDTO {}
+
 impl From<MonthDTO> for Month {
     fn from(month_dto: MonthDTO) -> Self {
         match month_dto {
@@ -100,14 +106,16 @@ impl From<Month> for MonthDTO {
 
 
 #[derive(Serialize, Deserialize, Debug)]
-pub enum AlarmMarcherDTO<T: Eq + Hash + Clone> {
+pub enum AlarmMarcherDTO<T: Eq + Hash + Clone + Serialize> {
     Ignore,
     Match(HashSet<T>),
     DoNotMatch(HashSet<T>),
 }
 
+impl<T: Eq + Hash + Clone + Serialize> ToResponseData for AlarmMarcherDTO<T> {}
+
 impl<Dto, T> From<AlarmMarcherDTO<Dto>> for AlarmMarcher<T>
-where Dto: Eq + Hash + Clone,
+where Dto: Eq + Hash + Clone + Serialize,
       T: Eq + Hash + Clone + From<Dto> {
     fn from(alarm_matcher_dto: AlarmMarcherDTO<Dto>) -> Self {
         match alarm_matcher_dto {
@@ -131,7 +139,7 @@ where Dto: Eq + Hash + Clone,
 }
 
 impl<Dto, T> From<AlarmMarcher<T>> for AlarmMarcherDTO<Dto>
-where Dto: Eq + Hash + Clone + From<T>,
+where Dto: Eq + Hash + Clone + From<T> + Serialize,
       T: Eq + Hash + Clone {
     fn from(alarm_matcher: AlarmMarcher<T>) -> Self {
         match alarm_matcher {
@@ -168,6 +176,8 @@ pub struct AlarmDTO {
 
     pub impulse_length_millis: u64,
 }
+
+impl ToResponseData for AlarmDTO {}
 
 impl From<AlarmDTO> for Alarm {
     fn from(alarm_dto: AlarmDTO) -> Self {

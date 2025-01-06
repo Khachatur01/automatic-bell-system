@@ -20,7 +20,6 @@ use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
 use interface::clock::{ReadClock, WriteClock};
 use interface::disk::{ReadDisk, WriteDisk};
-use interface::Path;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use shared_bus::BusManagerStd;
@@ -28,6 +27,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::time::Duration;
 use std::thread;
+use interface::disk::path::directory_path::DirectoryPath;
+use interface::disk::path::file_path::FilePath;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -104,6 +105,7 @@ impl ScheduleSystem {
             display,
         };
 
+        this.init_filesystem()?;
         this.synchronize_alarms_from_disk()?;
 
         Ok(this)
@@ -155,7 +157,7 @@ impl ScheduleSystem {
 
 /* disk */
 impl ScheduleSystem {
-    pub fn read_from_file(&self, path: &Path) -> ScheduleSystemResult<Vec<u8>> {
+    pub fn read_from_file(&self, path: &FilePath) -> ScheduleSystemResult<Vec<u8>> {
         self.disk
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
@@ -163,7 +165,7 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::DiskError)
     }
 
-    pub fn write_to_file(&self, path: &Path, data_buffer: &mut [u8]) -> ScheduleSystemResult<()> {
+    pub fn write_to_file(&self, path: &FilePath, data_buffer: &mut [u8]) -> ScheduleSystemResult<()> {
         self.disk
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
@@ -288,6 +290,30 @@ impl ScheduleSystem {
 
 /* disk synchronization */
 impl ScheduleSystem {
+    fn init_filesystem(&self) -> ScheduleSystemResult<()> {
+        println!("1");
+        let mut disk = self
+            .disk
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+
+        println!("2");
+        let path: DirectoryPath = ["schedule", "www"].as_slice().into();
+
+        println!("3");
+        disk.make_dir(&path)
+            .map_err(ScheduleSystemError::DiskError)?;
+
+        println!("4");
+        let path: DirectoryPath = ["schedule", "alarms"].as_slice().into();
+
+        println!("5");
+        disk.make_dir(&path)
+            .map_err(ScheduleSystemError::DiskError)?;
+
+        println!("6");
+        Ok(())
+    }
 
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
         // let mut disk = self

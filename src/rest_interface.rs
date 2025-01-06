@@ -4,7 +4,6 @@ mod alarm_controller;
 
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::sys::EspError;
-use http_server::http_request::HttpRequest;
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
 

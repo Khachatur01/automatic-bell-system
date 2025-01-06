@@ -1,15 +1,15 @@
+use crate::model::clock::clock::ClockDTO;
 use crate::schedule_system::ScheduleSystem;
 use chrono::{DateTime, Utc};
 use esp_idf_svc::http::server::{EspHttpConnection, Request};
 use esp_idf_svc::http::Method;
 use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::sys::EspError;
-use http_server::http_request::HttpRequest;
+use http_request::RequestResult;
+use http_server::http_request;
+use http_server::http_request::{IntoResponse, ReadData};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
-use http_server::http_request;
-use http_request::RequestResult;
-use crate::model::clock::clock::ClockDTO;
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);

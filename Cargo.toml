@@ -38,7 +38,7 @@ display-interface = "0.4.1"
 chrono = "0.4.38"
 embedded-sdmmc = "0.8.0"
 serde = { version = "1.0.216", features = ["derive"] }
-serde_json = "1.0.134"
+serde_json = { version = "1.0.134", features = ["raw_value"] }
 serde_urlencoded = "0.7.1"
 rand = "0.8.5"
 
@@ -48,6 +48,7 @@ access_point = { path = "lib/access_point" }
 http_server = { path = "lib/http_server" }
 disk = { path = "lib/disk" }
 interface = { path = "lib/interface" }
+log = "0.4.22"
 
 [build-dependencies]
 embuild = "0.32.0"

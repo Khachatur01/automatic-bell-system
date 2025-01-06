@@ -1,12 +1,13 @@
-use embedded_sdmmc::{Mode, SdCard, TimeSource, Timestamp, VolumeIdx};
+use embedded_sdmmc::{Error, Mode, SdCard, TimeSource, Timestamp, VolumeIdx};
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::spi::config::Duplex;
 use esp_idf_svc::hal::spi::{SpiConfig, SpiDeviceDriver, SpiDriver};
 use esp_idf_svc::sys::EspError;
+use interface::disk::path::directory_path::DirectoryPath;
+use interface::disk::path::file_path::FilePath;
 use interface::disk::{DiskResult, ReadDisk, WriteDisk};
-use interface::Path;
 
 const MAX_DIRS: usize = 16;
 const MAX_FILES: usize = 16;
@@ -14,10 +15,10 @@ const MAX_VOLUMES: usize = 1;
 
 
 type BlockDevice<'spi> = SdCard<SpiDeviceDriver<'spi, SpiDriver<'spi>>, FreeRtos>;
-type VolumeManager<'bd> = embedded_sdmmc::VolumeManager<BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
-type Volume<'bd, 'vol> = embedded_sdmmc::Volume<'vol, BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
-type Directory<'bd, 'dir> = embedded_sdmmc::Directory<'dir, BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
-type File<'bd, 'file> = embedded_sdmmc::File<'file, BlockDevice<'bd>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type VolumeManager<'spi> = embedded_sdmmc::VolumeManager<BlockDevice<'spi>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type Volume<'spi, 'vol> = embedded_sdmmc::Volume<'vol, BlockDevice<'spi>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type Directory<'spi, 'vol> = embedded_sdmmc::Directory<'vol, BlockDevice<'spi>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
+type File<'spi, 'vol> = embedded_sdmmc::File<'vol, BlockDevice<'spi>, SdMmcClock, MAX_DIRS, MAX_FILES, MAX_VOLUMES>;
 
 
 pub struct SdMmcClock;
@@ -35,16 +36,12 @@ impl TimeSource for SdMmcClock {
     }
 }
 
-pub struct DiskDirectory<'a, 'b> {
-    directory: Directory<'a, 'b>
+pub struct Disk<'spi> {
+    volume_manager: VolumeManager<'spi>
 }
 
-pub struct Disk<'bd> {
-    volume_manager: VolumeManager<'bd>
-}
-
-impl<'bd> Disk<'bd> {
-    pub fn new<CS: Peripheral<P = impl OutputPin> + 'bd>(spi_driver: SpiDriver<'bd>, cs: CS) -> Result<Self, EspError> {
+impl<'spi> Disk<'spi> {
+    pub fn new<CS: Peripheral<P = impl OutputPin> + 'spi>(spi_driver: SpiDriver<'spi>, cs: CS) -> Result<Self, EspError> {
         let mut spi_config = SpiConfig::new();
         spi_config.duplex = Duplex::Full;
 
@@ -54,20 +51,27 @@ impl<'bd> Disk<'bd> {
         Ok(Self { volume_manager: VolumeManager::new_with_limits(sdcard, SdMmcClock, 5000) })
     }
 
-    pub fn open_dir(&mut self, path: &Path) -> DiskResult<Directory> {
+    pub fn make_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
         for dir in &path.directories_path {
+            if let Err(error) = directory.make_dir_in_dir(dir.as_str()) {
+                /* Raise an error if it's not DirAlreadyExists error. */
+                if !matches!(error, Error::DirAlreadyExists) {
+                    return Err(error);
+                }
+            }
+
             directory.change_dir(dir.as_str())?;
         }
 
-        Ok(directory)
+        Ok(())
     }
 }
 
 impl<'a> ReadDisk for Disk<'a> {
-    fn read_from_file(&mut self, path: &Path) -> DiskResult<Vec<u8>> {
+    fn read_from_file(&mut self, path: &FilePath) -> DiskResult<Vec<u8>> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
@@ -85,7 +89,7 @@ impl<'a> ReadDisk for Disk<'a> {
 }
 
 impl<'a> WriteDisk for Disk<'a> {
-    fn write_to_file(&mut self, path: &Path, data_buffer: &[u8]) -> DiskResult<()> {
+    fn write_to_file(&mut self, path: &FilePath, data_buffer: &[u8]) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
 
