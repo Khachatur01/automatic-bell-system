@@ -29,12 +29,10 @@ use std::time::Duration;
 use std::thread;
 use interface::disk::path::directory_path::DirectoryPath;
 use interface::disk::path::file_path::FilePath;
+use crate::{ALARMS_DIR, SYSTEM_DIR, WEB_UI_DIR};
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
-
-const ALARMS_LOCATION: &str = "/alarms";
-const ALARMS_FILE_NAME: &str = "a.jso";
 
 
 /* Wrap fields into box to prevent stack overflowing.*/
@@ -291,27 +289,21 @@ impl ScheduleSystem {
 /* disk synchronization */
 impl ScheduleSystem {
     fn init_filesystem(&self) -> ScheduleSystemResult<()> {
-        println!("1");
         let mut disk = self
             .disk
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?;
 
-        println!("2");
-        let path: DirectoryPath = ["schedule", "www"].as_slice().into();
+        let path: DirectoryPath = [SYSTEM_DIR, WEB_UI_DIR].as_slice().into();
 
-        println!("3");
         disk.make_dir(&path)
             .map_err(ScheduleSystemError::DiskError)?;
 
-        println!("4");
-        let path: DirectoryPath = ["schedule", "alarms"].as_slice().into();
+        let path: DirectoryPath = [SYSTEM_DIR, ALARMS_DIR].as_slice().into();
 
-        println!("5");
         disk.make_dir(&path)
             .map_err(ScheduleSystemError::DiskError)?;
 
-        println!("6");
         Ok(())
     }
 

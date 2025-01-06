@@ -12,6 +12,10 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+const SYSTEM_DIR: &str = "schedule";
+const WEB_UI_DIR: &str = "www";
+const ALARMS_DIR: &str = "alarms";
+
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
     /* implemented by esp-idf-sys might not link properly. See https://github.com/esp-rs/esp-idf-template/issues/71 */
