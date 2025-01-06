@@ -1,11 +1,9 @@
 pub mod alarm_id;
-pub mod model;
 pub mod to_alarms_with_id;
 mod error;
 
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
-use crate::schedule_system::model::output_index::OutputIndex;
 use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock, IntoMutexOutputPin, MutexOutputPin};
 use access_point::access_point::AccessPoint;
@@ -23,12 +21,13 @@ use esp_idf_svc::hal::spi::SpiDriver;
 use interface::clock::{ReadClock, WriteClock};
 use interface::disk::{ReadDisk, WriteDisk};
 use interface::Path;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::thread;
 use std::time::Duration;
-use uuid::Uuid;
+use std::thread;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -55,7 +54,8 @@ impl ScheduleSystem {
         let i2c_config = I2cConfig::default();
         let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).map_err(ScheduleSystemError::EspError)?;
 
-        let i2c_bus_manager: &'static BusManagerStd<I2cDriver> = shared_bus::new_std!(I2cDriver = i2c_driver).ok_or(ScheduleSystemError::I2cSharedBusError)?;
+        let i2c_bus_manager: &'static BusManagerStd<I2cDriver> = shared_bus::new_std!(I2cDriver = i2c_driver)
+            .ok_or(ScheduleSystemError::I2cSharedBusError)?;
         /* Init I2c bus */
 
         /* Init SPI driver */
@@ -112,12 +112,12 @@ impl ScheduleSystem {
 
     fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
         /* fixme: remove print statement */
-        println!("Alarming {} {} {}", *alarm_id.output_index, alarm_id.uuid, date_time);
+        println!("Alarming {} {} {}", alarm_id.output_index, alarm_id.identifier, date_time);
 
-        let output_index: usize = *alarm_id.output_index as usize;
+        let output_index: usize = alarm_id.output_index as usize;
 
         let Some(output_pin) = alarm_output_pins.get(output_index) else {
-            return;;
+            return;
         };
 
         let Ok(mut output_pin_driver) = output_pin.try_lock() else {
@@ -207,8 +207,9 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::ClockError)
     }
 
-    pub fn get_alarms_by_output_index(&self, output_index: OutputIndex) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
-        let alarms = self.clock
+    pub fn get_alarms_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<HashMap<AlarmId, Alarm>> {
+        let alarms = self
+            .clock
             .read()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .get_alarms()
@@ -227,21 +228,41 @@ impl ScheduleSystem {
         Ok(alarms)
     }
 
-    pub fn add_alarm(&self, output_index: OutputIndex, alarm: Alarm) -> ScheduleSystemResult<()> {
-        let alarm_id: AlarmId = AlarmId {
-            output_index,
-            uuid: Uuid::new_v4(),
+    pub fn add_alarm(&self, output_index: u8, alarm: Alarm) -> ScheduleSystemResult<()> {
+        let mut clock = self
+            .clock
+            .write()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+
+        /* generate random identifier until unique one found */
+        let alarm_id: AlarmId = loop {
+            let identifier: String = thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(8)
+                .map(char::from)
+                .collect();
+
+            let alarm_id: AlarmId = AlarmId {
+                output_index,
+                identifier,
+            };
+
+            let is_alarm_id_unique: bool = clock
+                .is_alarm_id_unique(&alarm_id)
+                .map_err(ScheduleSystemError::ClockError)?;
+
+            if is_alarm_id_unique {
+                break alarm_id;
+            }
         };
 
-        let alarms = self.clock
-            .write()
-            .map_err(|_| ScheduleSystemError::MutexLockError)?
+        clock
             .add_alarm(alarm_id, alarm)
             .map_err(ScheduleSystemError::ClockError)?;
 
         self.write_alarms_to_disk()?;
 
-        Ok(alarms)
+        Ok(())
     }
 
     pub fn remove_alarm(&self, alarm_id: &AlarmId) -> ScheduleSystemResult<()> {
@@ -254,11 +275,11 @@ impl ScheduleSystem {
         self.write_alarms_to_disk()
     }
 
-    pub fn remove_alarms_by_output_index(&self, output_index: &OutputIndex) -> ScheduleSystemResult<()> {
+    pub fn remove_alarms_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<()> {
         self.clock
             .write()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
-            .remove_alarm_if(|alarm_id: &AlarmId| alarm_id.output_index == *output_index)
+            .remove_alarm_if(|alarm_id: &AlarmId| alarm_id.output_index == output_index)
             .map_err(ScheduleSystemError::ClockError)?;
 
         self.write_alarms_to_disk()

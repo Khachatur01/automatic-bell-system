@@ -50,7 +50,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             system_time: EspSystemTime,
         };
 
-        let _ = Clock::<AlarmId>::synchronize_datetime(&mut api);
+        Clock::<AlarmId>::synchronize_datetime(&mut api)?;
 
         let mut this: Self = Self {
             api: Arc::new(RwLock::new(api)),
@@ -61,6 +61,16 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
         this.start_alarm_matching(on_synchronize, on_alarm);
 
         Ok(this)
+    }
+
+    pub fn is_alarm_id_unique(&self, id: &AlarmId) -> Result<bool, ClockError> {
+        let contains: bool = self
+            .alarms
+            .read()
+            .map_err(|_| ClockError::MutexLockError)?
+            .contains_key(id);
+
+        Ok(!contains)
     }
 
     pub fn get_alarms(&self) -> Result<HashMap<AlarmId, Alarm>, ClockError> {

@@ -1,6 +1,5 @@
 use crate::schedule_system::alarm_id::AlarmId;
-use crate::schedule_system::model::output_index::OutputIndex;
-use crate::schedule_system::{to_alarms_with_id, ScheduleSystem};
+use crate::schedule_system::ScheduleSystem;
 use clock::alarm::Alarm;
 use esp_idf_svc::http::server::{EspHttpConnection, Request};
 use esp_idf_svc::http::Method;
@@ -52,10 +51,7 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 }
 
 fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let alarm_id: AlarmId =
-        request.parameters::<AlarmIdDTO>()?
-            .try_into()
-            .map_err(|error| RequestError::General(error))?;
+    let alarm_id: AlarmId = request.parameters::<AlarmIdDTO>()?.into();
 
     let alarm: Alarm =
         schedule_system
@@ -68,10 +64,7 @@ fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
 }
 
 fn get_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let output_index: OutputIndex =
-        request.parameters::<OutputIndexDTO>()?
-            .try_into()
-            .map_err(|error| RequestError::General(error))?;
+    let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
     let alarms_with_id_dto: Vec<AlarmWithIdDTO> =
         schedule_system
@@ -83,10 +76,7 @@ fn get_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule
 }
 
 fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let output_index: OutputIndex =
-        request.parameters::<OutputIndexDTO>()?
-            .try_into()
-            .map_err(|error| RequestError::General(error))?;
+    let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
     let alarm: Alarm = request.read_all::<AlarmDTO>()?.into();
 
@@ -98,10 +88,7 @@ fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc
 }
 
 fn delete_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let alarm_id: AlarmId =
-        request.parameters::<AlarmIdDTO>()?
-            .try_into()
-            .map_err(|error| RequestError::General(error))?;
+    let alarm_id: AlarmId = request.parameters::<AlarmIdDTO>()?.into();
 
     schedule_system
         .remove_alarm(&alarm_id)
@@ -111,13 +98,10 @@ fn delete_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<
 }
 
 fn delete_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let output_index: OutputIndex =
-        request.parameters::<OutputIndexDTO>()?
-            .try_into()
-            .map_err(|error| RequestError::General(error))?;
+    let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
     schedule_system
-        .remove_alarms_by_output_index(&output_index)
+        .remove_alarms_by_output_index(output_index)
         .map_err(|error| RequestError::General(error.to_string()))?;
 
     request.ok(&"Alarms removed")
