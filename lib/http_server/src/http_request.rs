@@ -20,7 +20,8 @@ where C: Connection,
 
     let response_data: &[u8] = response_str.as_bytes();
 
-    response.write_all(response_data)
+    response
+        .write_all(response_data)
         .map_err(RequestError::Connection)?;
 
     Ok(())

@@ -1,11 +1,9 @@
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::http::Method;
 use esp_idf_svc::sys::EspError;
-use http_server::http_request::{IntoResponse};
+use http_server::http_request::IntoResponse;
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
-use serde_json::value::RawValue;
-use http_server::http_request::ResponseData;
 
 const UI_FILES_LOCATION: &str = "/schedule/www";
 
@@ -23,7 +21,7 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
         };
 
         match schedule_system_clone.read_from_file(&path) {
-            Ok(content) => request.ok(&RawValue::from_string(String::from_utf8_lossy(&content).to_string()).unwrap().to_string()),
+            Ok(content) => request.ok(&String::from_utf8_lossy(&content).to_string()),
             Err(error) => request.not_found(&format!("Can't read from file |{UI_FILES_LOCATION}{filepath}|. {error}").as_str())
         }
     })
