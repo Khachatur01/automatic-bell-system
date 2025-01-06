@@ -1,4 +1,5 @@
-use embedded_sdmmc::{Error, Mode, SdCard, TimeSource, Timestamp, VolumeIdx};
+use embedded_sdmmc::{DirEntry, Error, Mode, SdCard, ShortFileName, TimeSource, Timestamp, VolumeIdx};
+use embedded_sdmmc::filesystem::ToShortFileName;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::peripheral::Peripheral;
@@ -64,6 +65,46 @@ impl<'spi> Disk<'spi> {
             }
 
             directory.change_dir(dir.as_str())?;
+        }
+
+        Ok(())
+    }
+
+    pub fn remove_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+
+        let length: usize = path.directories_path.len();
+
+        if let (directories_path, [removable_dir]) = path.directories_path.as_slice().split_at(length) {
+            for dir in directories_path {
+                directory.change_dir(dir.as_str())?;
+            }
+
+            directory.delete_file_in_dir(removable_dir.as_str())?;
+        }
+
+        Ok(())
+    }
+
+    pub fn clear_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
+
+        let mut filenames: Vec<ShortFileName> = vec![];
+
+        directory.iterate_dir(|dir_entry: &DirEntry| {
+            if !dir_entry.attributes.is_directory() {
+                filenames.push(dir_entry.name.clone());
+            }
+        })?;
+
+        for filename in filenames {
+            directory.delete_file_in_dir(&filename)?;
         }
 
         Ok(())

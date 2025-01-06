@@ -14,6 +14,7 @@ impl<'a> HttpServer<'a> {
     pub fn new() -> Result<Self, EspIOError> {
         let mut configuration: Configuration = Configuration::default();
         configuration.uri_match_wildcard = true;
+        configuration.stack_size = 8 * 1024;
 
         let mut server: EspHttpServer = EspHttpServer::new(&configuration)?;
 

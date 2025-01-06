@@ -2,10 +2,12 @@ pub mod alarm_id;
 pub mod to_alarms_with_id;
 mod error;
 
+use crate::model::alarm::alarm::AlarmDTO;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
 use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock, IntoMutexOutputPin, MutexOutputPin};
+use crate::{ALARMS_DIR, OUTPUT_DIR, SYSTEM_DIR, WEB_UI_DIR};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
 use clock::alarm::Alarm;
@@ -18,18 +20,18 @@ use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
+use http_server::to_response_data::ToResponseData;
 use interface::clock::{ReadClock, WriteClock};
+use interface::disk::path::directory_path::DirectoryPath;
+use interface::disk::path::file_path::FilePath;
 use interface::disk::{ReadDisk, WriteDisk};
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::time::Duration;
 use std::thread;
-use interface::disk::path::directory_path::DirectoryPath;
-use interface::disk::path::file_path::FilePath;
-use crate::{ALARMS_DIR, SYSTEM_DIR, WEB_UI_DIR};
+use std::time::Duration;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -76,6 +78,7 @@ impl ScheduleSystem {
                 .try_into_mutex_output_pin()
                 .map_err(ScheduleSystemError::EspError)?,
         ];
+        let output_pins_count: usize = alarm_output_pins.len();
 
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
@@ -103,7 +106,7 @@ impl ScheduleSystem {
             display,
         };
 
-        this.init_filesystem()?;
+        this.init_filesystem(output_pins_count)?;
         this.synchronize_alarms_from_disk()?;
 
         Ok(this)
@@ -223,8 +226,6 @@ impl ScheduleSystem {
                 accumulator
             });
 
-        self.write_alarms_to_disk()?;
-
         Ok(alarms)
     }
 
@@ -256,11 +257,11 @@ impl ScheduleSystem {
             }
         };
 
+        self.write_alarm_to_disk(alarm_id.clone(), alarm.clone())?;
+
         clock
             .add_alarm(alarm_id, alarm)
             .map_err(ScheduleSystemError::ClockError)?;
-
-        self.write_alarms_to_disk()?;
 
         Ok(())
     }
@@ -272,7 +273,7 @@ impl ScheduleSystem {
             .remove_alarm(alarm_id)
             .map_err(ScheduleSystemError::ClockError)?;
 
-        self.write_alarms_to_disk()
+        self.remove_alarm_from_disk_by_id(&alarm_id)
     }
 
     pub fn remove_alarms_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<()> {
@@ -282,13 +283,13 @@ impl ScheduleSystem {
             .remove_alarm_if(|alarm_id: &AlarmId| alarm_id.output_index == output_index)
             .map_err(ScheduleSystemError::ClockError)?;
 
-        self.write_alarms_to_disk()
+        self.remove_alarm_from_disk_by_output_index(output_index)
     }
 }
 
 /* disk synchronization */
 impl ScheduleSystem {
-    fn init_filesystem(&self) -> ScheduleSystemResult<()> {
+    fn init_filesystem(&self, outputs_count: usize) -> ScheduleSystemResult<()> {
         let mut disk = self
             .disk
             .lock()
@@ -303,6 +304,17 @@ impl ScheduleSystem {
 
         disk.make_dir(&path)
             .map_err(ScheduleSystemError::DiskError)?;
+
+        for output_index in 0..outputs_count {
+            let path: DirectoryPath = [
+                SYSTEM_DIR,
+                ALARMS_DIR,
+                format!("{OUTPUT_DIR}_{output_index}").as_str()
+            ].as_slice().into();
+
+            disk.make_dir(&path)
+                .map_err(ScheduleSystemError::DiskError)?;
+        }
 
         Ok(())
     }
@@ -345,27 +357,56 @@ impl ScheduleSystem {
         Ok(())
     }
 
-    fn write_alarms_to_disk(&self) -> ScheduleSystemResult<()> {
+    fn write_alarm_to_disk(&self, alarm_id: AlarmId, alarm: Alarm) -> ScheduleSystemResult<()> {
+        let mut disk = self
+            .disk
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+
+        let output_index: u8 = alarm_id.output_index;
+        let identifier: &str = alarm_id.identifier.as_str().into();
+
+        let alarm_dto: AlarmDTO = alarm.into();
+
+        let file_path: FilePath = (
+            [
+                SYSTEM_DIR,
+                ALARMS_DIR,
+                format!("{OUTPUT_DIR}_{output_index}").as_str()
+            ].as_slice(),
+            identifier
+        ).into();
+
+        disk.write_to_file(&file_path, alarm_dto.to_response_data().as_bytes())
+            .map_err(ScheduleSystemError::DiskError)?;
+
+        Ok(())
+    }
+
+    fn remove_alarm_from_disk_by_id(&self, alarm_id: &AlarmId) -> ScheduleSystemResult<()> {
         // let mut disk = self
         //     .disk
         //     .lock()
         //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
-        // let clock = self
-        //     .clock
-        //     .read()
-        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
-        // 
-        // let alarms: Vec<AlarmWithIdDTO> = clock.get_alarms()
-        //     .map_err(ScheduleSystemError::ClockError)?
-        //     .to_alarms_with_id();
-        // 
-        // let alarms_json: String = serde_json::to_string(&alarms)
-        //     .map_err(ScheduleSystemError::SerdeError)?;
-        // 
-        // let path: Path = Path::try_from(format!("{ALARMS_LOCATION}/{ALARMS_FILE_NAME}"))
-        //     .map_err(ScheduleSystemError::PathParseError)?;
-        // disk.write_to_file(&path, &alarms_json.as_bytes())
-        //     .map_err(ScheduleSystemError::DiskError)?;
+
+        Ok(())
+    }
+
+    fn remove_alarm_from_disk_by_output_index(&self, output_index: u8) -> ScheduleSystemResult<()> {
+        let mut disk = self
+            .disk
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+
+        let path: DirectoryPath =
+            [
+                SYSTEM_DIR,
+                ALARMS_DIR,
+                format!("{OUTPUT_DIR}_{output_index}").as_str()
+            ].as_slice().into();
+
+        disk.clear_dir(&path)
+            .map_err(ScheduleSystemError::DiskError)?;
 
         Ok(())
     }

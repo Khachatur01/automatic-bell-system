@@ -35,3 +35,14 @@ impl TryFrom<&str> for FilePath {
         }
     }
 }
+
+impl From<(&[&str], &str)> for FilePath {
+    fn from(raw_path: (&[&str], &str)) -> Self {
+        Self {
+            directories_path: raw_path.0.iter()
+                .map(ToString::to_string)
+                .collect(),
+            filename: raw_path.1.to_string()
+        }
+    }
+}

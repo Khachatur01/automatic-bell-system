@@ -15,6 +15,7 @@ use std::time::Duration;
 const SYSTEM_DIR: &str = "schedule";
 const WEB_UI_DIR: &str = "www";
 const ALARMS_DIR: &str = "alarms";
+const OUTPUT_DIR: &str = "output";
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */

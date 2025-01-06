@@ -1,5 +1,4 @@
-use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 
 #[derive(Debug)]
 pub enum PathParseError {
