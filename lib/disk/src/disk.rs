@@ -109,6 +109,19 @@ impl<'spi> Disk<'spi> {
 
         Ok(())
     }
+
+    pub fn delete_file(&mut self, path: &FilePath) -> DiskResult<()> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
+
+        directory.delete_file_in_dir(path.filename.as_str())?;
+
+        Ok(())
+    }
 }
 
 impl<'a> ReadDisk for Disk<'a> {

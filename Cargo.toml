@@ -1,5 +1,12 @@
 [workspace]
-members = ["lib/access_point", "lib/clock", "lib/display", "lib/http_server", "lib/disk", "lib/interface"]
+members = [
+    "lib/access_point",
+    "lib/clock",
+    "lib/display",
+    "lib/http_server",
+    "lib/disk",
+    "lib/interface"
+]
 
 [package]
 name = "automatic-bell-system"

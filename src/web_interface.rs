@@ -4,8 +4,7 @@ use esp_idf_svc::sys::EspError;
 use http_server::http_request::IntoResponse;
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
-use crate::{SYSTEM_DIR, WEB_UI_DIR};
-
+use crate::constant::{SYSTEM_DIR, WEB_UI_DIR};
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let ui_files_location: String = format!("/{SYSTEM_DIR}/{WEB_UI_DIR}");

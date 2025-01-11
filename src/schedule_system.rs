@@ -7,7 +7,6 @@ use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
 use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock, IntoMutexOutputPin, MutexOutputPin};
-use crate::{ALARMS_DIR, OUTPUT_DIR, SYSTEM_DIR, WEB_UI_DIR};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
 use clock::alarm::Alarm;
@@ -32,6 +31,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
+use crate::constant::{ALARMS_DIR, OUTPUT_DIR, SYSTEM_DIR, WEB_UI_DIR};
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -383,11 +383,24 @@ impl ScheduleSystem {
         Ok(())
     }
 
-    fn remove_alarm_from_disk_by_id(&self, alarm_id: &AlarmId) -> ScheduleSystemResult<()> {
-        // let mut disk = self
-        //     .disk
-        //     .lock()
-        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
+    fn remove_alarm_from_disk_by_id(&self, AlarmId { output_index, identifier }: &AlarmId) -> ScheduleSystemResult<()> {
+        let mut disk = self
+            .disk
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+
+        let path: FilePath =
+            (
+                [
+                    SYSTEM_DIR,
+                    ALARMS_DIR,
+                    format!("{OUTPUT_DIR}_{output_index}").as_str(),
+                ].as_slice(),
+                identifier.as_str()
+            ).into();
+
+        disk.delete_file(&path)
+            .map_err(ScheduleSystemError::DiskError)?;
 
         Ok(())
     }

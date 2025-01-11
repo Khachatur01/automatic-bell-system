@@ -3,6 +3,7 @@ mod rest_interface;
 mod web_interface;
 mod synchronizer;
 mod model;
+mod constant;
 
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::hal::prelude::Peripherals;
@@ -11,11 +12,6 @@ use interface::clock::ReadClock;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-
-const SYSTEM_DIR: &str = "schedule";
-const WEB_UI_DIR: &str = "www";
-const ALARMS_DIR: &str = "alarms";
-const OUTPUT_DIR: &str = "output";
 
 fn main() {
     /* It is necessary to call this function once. Otherwise, some patches to the runtime */
