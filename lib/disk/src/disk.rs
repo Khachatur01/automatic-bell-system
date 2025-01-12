@@ -63,8 +63,15 @@ impl<'spi> Disk<'spi> {
         let mut dirs: Vec<String> = vec![];
 
         directory.iterate_dir(|dir_entry: &DirEntry| {
+            let dir_name: String = dir_entry.name.to_string();
+
+            /* skip special names for current and parent directories */
+            if dir_name == "." || dir_name == ".." {
+                return;
+            }
+
             if dir_entry.attributes.is_directory() {
-                dirs.push(dir_entry.name.to_string());
+                dirs.push(dir_name);
             }
         })?;
 

@@ -115,7 +115,6 @@ impl ScheduleSystem {
 
 
     fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
-        /* fixme: remove print statement */
         println!("Alarming {} {} {}", alarm_id.output_index, alarm_id.identifier, date_time);
 
         let output_index: usize = alarm_id.output_index as usize;
@@ -324,6 +323,48 @@ impl ScheduleSystem {
      * Read all alarms from disk and add to clock.
      */
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
+        fn get_output_dir_names(disk: &mut Disk) -> ScheduleSystemResult<Vec<String>> {
+            let path: DirectoryPath =
+                [
+                    SYSTEM_DIR,
+                    ALARMS_DIR,
+                ].as_slice().into();
+            disk
+                .list_dir(&path)
+                .map_err(ScheduleSystemError::DiskError)
+        }
+
+        fn get_alarm_file_names(disk: &mut Disk, output_dir_name: &str) -> ScheduleSystemResult<Vec<String>> {
+            let path: DirectoryPath =
+                [
+                    SYSTEM_DIR,
+                    ALARMS_DIR,
+                    output_dir_name
+                ].as_slice().into();
+            disk
+                .list_files(&path)
+                .map_err(ScheduleSystemError::DiskError)
+        }
+
+        fn read_alarm_file(disk: &mut Disk, output_dir_name: &str, alarm_file_name: &str) -> ScheduleSystemResult<String> {
+            let file_path: FilePath = (
+                [
+                    SYSTEM_DIR,
+                    ALARMS_DIR,
+                    &output_dir_name
+                ].as_slice(),
+                alarm_file_name
+            ).into();
+
+            let content: Vec<u8> = disk.read_from_file(&file_path)
+                .map_err(ScheduleSystemError::DiskError)?;
+
+            let alarm: String = String::from_utf8_lossy(&content).to_string();
+
+            Ok(alarm)
+        }
+
+
         let mut disk = self
             .disk
             .lock()
@@ -333,45 +374,14 @@ impl ScheduleSystem {
             .write()
             .map_err(|_| ScheduleSystemError::MutexLockError)?;
 
-        let path: DirectoryPath =
-            [
-                SYSTEM_DIR,
-                ALARMS_DIR,
-            ].as_slice().into();
-        let output_dir_names: Vec<String> = disk
-            .list_dir(&path)
-            .map_err(ScheduleSystemError::DiskError)?;
+        let output_dir_names: Vec<String> = get_output_dir_names(&mut disk)?;
 
         for output_dir_name in output_dir_names {
-            let output_index: usize = match output_dir_name.parse() {
-                Ok(output_index) => output_index,
-                Err(_) => continue
-            };
-
-            let path: DirectoryPath =
-                [
-                    SYSTEM_DIR,
-                    ALARMS_DIR,
-                    output_index.to_string().as_str()
-                ].as_slice().into();
-            let alarm_file_names: Vec<String> = disk
-                .list_files(&path)
-                .map_err(ScheduleSystemError::DiskError)?;
+            let alarm_file_names: Vec<String> = get_alarm_file_names(&mut disk, &output_dir_name)?;
 
             for alarm_file_name in alarm_file_names {
-                let file_path: FilePath = (
-                    [
-                        SYSTEM_DIR,
-                        ALARMS_DIR,
-                        output_index.to_string().as_str()
-                    ].as_slice(),
-                    alarm_file_name.as_str()
-                ).into();
+                let alarm_str: String = read_alarm_file(&mut disk, &output_dir_name, &alarm_file_name)?;
 
-                let content: Vec<u8> = disk.read_from_file(&file_path)
-                    .map_err(ScheduleSystemError::DiskError)?;
-
-                let alarm_str: String = String::from_utf8_lossy(&content).to_string();
                 let alarm_with_id: AlarmWithIdDTO = match serde_json::from_str(&alarm_str) {
                     Ok(alarm_with_id) => alarm_with_id,
                     Err(_) => continue
