@@ -7,8 +7,8 @@ impl ToResponseData for AlarmIdDTO {}
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]
 pub struct AlarmIdDTO {
-    output_index: u8,
-    identifier: String
+    pub output_index: u8,
+    pub identifier: String
 }
 
 impl From<AlarmIdDTO> for AlarmId {

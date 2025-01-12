@@ -52,6 +52,46 @@ impl<'spi> Disk<'spi> {
         Ok(Self { volume_manager: VolumeManager::new_with_limits(sdcard, SdMmcClock, 5000) })
     }
 
+    pub fn list_dir(&mut self, path: &DirectoryPath) -> DiskResult<Vec<String>> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
+
+        let mut dirs: Vec<String> = vec![];
+
+        directory.iterate_dir(|dir_entry: &DirEntry| {
+            if dir_entry.attributes.is_directory() {
+                dirs.push(dir_entry.name.to_string());
+            }
+        })?;
+
+        Ok(dirs)
+    }
+
+    pub fn list_files(&mut self, path: &DirectoryPath) -> DiskResult<Vec<String>> {
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+
+        for dir in &path.directories_path {
+            directory.change_dir(dir.as_str())?;
+        }
+
+        let mut dirs: Vec<String> = vec![];
+
+        directory.iterate_dir(|dir_entry: &DirEntry| {
+            if dir_entry.attributes.is_directory() {
+                return;
+            }
+
+            dirs.push(dir_entry.name.to_string());
+        })?;
+
+        Ok(dirs)
+    }
+
     pub fn make_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;

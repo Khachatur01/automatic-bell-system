@@ -32,6 +32,7 @@ use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
 use crate::constant::{ALARMS_DIR, OUTPUT_DIR, SYSTEM_DIR, WEB_UI_DIR};
+use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -309,7 +310,7 @@ impl ScheduleSystem {
             let path: DirectoryPath = [
                 SYSTEM_DIR,
                 ALARMS_DIR,
-                format!("{OUTPUT_DIR}_{output_index}").as_str()
+                output_index.to_string().as_str()
             ].as_slice().into();
 
             disk.make_dir(&path)
@@ -320,39 +321,65 @@ impl ScheduleSystem {
     }
 
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
-        // let mut disk = self
-        //     .disk
-        //     .lock()
-        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
-        // let mut clock = self
-        //     .clock
-        //     .write()
-        //     .map_err(|_| ScheduleSystemError::MutexLockError)?;
-        // 
-        // let path: Path = Path::try_from(format!("{ALARMS_LOCATION}/{ALARMS_FILE_NAME}"))
-        //     .map_err(ScheduleSystemError::PathParseError)?;
-        // 
-        // let alarms_json_buffer: Vec<u8> = disk
-        //     .read_from_file(&path)
-        //     .map_err(ScheduleSystemError::DiskError)?;
-        // let alarms_json: String = String::from_utf8_lossy(&alarms_json_buffer).to_string();
-        // 
-        // let alarms: Vec<AlarmWithIdDTO> = serde_json::from_str(&alarms_json)
-        //     .map_err(ScheduleSystemError::SerdeError)?;
-        // 
-        // clock.clear_all_alarms()
-        //     .map_err(ScheduleSystemError::ClockError)?;
-        // 
-        // for alarm in alarms {
-        //     let alarm_id: AlarmId = alarm
-        //         .id
-        //         .try_into()
-        //         .map_err(ScheduleSystemError::AlarmIdParseError)?;
-        // 
-        //     clock
-        //         .add_alarm(alarm_id, alarm.alarm.into())
-        //         .map_err(ScheduleSystemError::ClockError)?;
-        // }
+        let mut disk = self
+            .disk
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+        let mut clock = self
+            .clock
+            .write()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?;
+
+        let path: DirectoryPath =
+            [
+                SYSTEM_DIR,
+                ALARMS_DIR,
+            ].as_slice().into();
+
+        let dir_names: Vec<String> = disk
+            .list_dir(&path)
+            .map_err(ScheduleSystemError::DiskError)?;
+
+        for dir_name in dir_names {
+            let output_index: usize = match dir_name.parse() {
+                Ok(output_index) => output_index,
+                Err(_) => continue
+            };
+
+            let path: DirectoryPath =
+                [
+                    SYSTEM_DIR,
+                    ALARMS_DIR,
+                    output_index.to_string().as_str()
+                ].as_slice().into();
+            let file_names: Vec<String> = disk
+                .list_files(&path)
+                .map_err(ScheduleSystemError::DiskError)?;
+
+            for file_name in file_names {
+                let file_path: FilePath = (
+                    [
+                        SYSTEM_DIR,
+                        ALARMS_DIR,
+                        output_index.to_string().as_str()
+                    ].as_slice(),
+                    file_name.as_str()
+                ).into();
+
+                let content: Vec<u8> = disk.read_from_file(&file_path)
+                    .map_err(ScheduleSystemError::DiskError)?;
+
+                let alarm_str: String = String::from_utf8_lossy(&content).to_string();
+                let alarm_with_id: AlarmWithIdDTO = match serde_json::from_str(&alarm_str) {
+                    Ok(alarm_with_id) => alarm_with_id,
+                    Err(_) => continue
+                };
+
+                clock
+                    .add_alarm(alarm_with_id.id.into(), alarm_with_id.alarm.into())
+                    .map_err(ScheduleSystemError::ClockError)?;
+            }
+        }
 
         Ok(())
     }
@@ -363,21 +390,23 @@ impl ScheduleSystem {
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?;
 
-        let output_index: u8 = alarm_id.output_index;
-        let identifier: &str = alarm_id.identifier.as_str().into();
+        let alarm_with_id: AlarmWithIdDTO = (alarm_id, alarm).into();
 
-        let alarm_dto: AlarmDTO = alarm.into();
+        let output_index: u8 = alarm_with_id.id.output_index;
+        let identifier: &str = alarm_with_id.id.identifier.as_str().into();
 
         let file_path: FilePath = (
             [
                 SYSTEM_DIR,
                 ALARMS_DIR,
-                format!("{OUTPUT_DIR}_{output_index}").as_str()
+                output_index.to_string().as_str()
             ].as_slice(),
             identifier
         ).into();
 
-        disk.write_to_file(&file_path, alarm_dto.to_response_data().as_bytes())
+        let alarm_str: String = serde_json::to_string(&alarm_with_id).unwrap_or_default();
+
+        disk.write_to_file(&file_path, alarm_str.as_bytes())
             .map_err(ScheduleSystemError::DiskError)?;
 
         Ok(())
@@ -394,7 +423,7 @@ impl ScheduleSystem {
                 [
                     SYSTEM_DIR,
                     ALARMS_DIR,
-                    format!("{OUTPUT_DIR}_{output_index}").as_str(),
+                    output_index.to_string().as_str()
                 ].as_slice(),
                 identifier.as_str()
             ).into();
@@ -415,7 +444,7 @@ impl ScheduleSystem {
             [
                 SYSTEM_DIR,
                 ALARMS_DIR,
-                format!("{OUTPUT_DIR}_{output_index}").as_str()
+                output_index.to_string().as_str()
             ].as_slice().into();
 
         disk.clear_dir(&path)
