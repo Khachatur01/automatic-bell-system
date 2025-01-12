@@ -320,6 +320,9 @@ impl ScheduleSystem {
         Ok(())
     }
 
+    /**
+     * Read all alarms from disk and add to clock.
+     */
     fn synchronize_alarms_from_disk(&self) -> ScheduleSystemResult<()> {
         let mut disk = self
             .disk
@@ -335,13 +338,12 @@ impl ScheduleSystem {
                 SYSTEM_DIR,
                 ALARMS_DIR,
             ].as_slice().into();
-
-        let dir_names: Vec<String> = disk
+        let output_dir_names: Vec<String> = disk
             .list_dir(&path)
             .map_err(ScheduleSystemError::DiskError)?;
 
-        for dir_name in dir_names {
-            let output_index: usize = match dir_name.parse() {
+        for output_dir_name in output_dir_names {
+            let output_index: usize = match output_dir_name.parse() {
                 Ok(output_index) => output_index,
                 Err(_) => continue
             };
@@ -352,18 +354,18 @@ impl ScheduleSystem {
                     ALARMS_DIR,
                     output_index.to_string().as_str()
                 ].as_slice().into();
-            let file_names: Vec<String> = disk
+            let alarm_file_names: Vec<String> = disk
                 .list_files(&path)
                 .map_err(ScheduleSystemError::DiskError)?;
 
-            for file_name in file_names {
+            for alarm_file_name in alarm_file_names {
                 let file_path: FilePath = (
                     [
                         SYSTEM_DIR,
                         ALARMS_DIR,
                         output_index.to_string().as_str()
                     ].as_slice(),
-                    file_name.as_str()
+                    alarm_file_name.as_str()
                 ).into();
 
                 let content: Vec<u8> = disk.read_from_file(&file_path)
