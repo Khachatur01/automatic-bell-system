@@ -382,10 +382,11 @@ impl ScheduleSystem {
             for alarm_file_name in alarm_file_names {
                 let alarm_str: String = read_alarm_file(&mut disk, &output_dir_name, &alarm_file_name)?;
 
-                let alarm_with_id: AlarmWithIdDTO = match serde_json::from_str(&alarm_str) {
-                    Ok(alarm_with_id) => alarm_with_id,
-                    Err(_) => continue
-                };
+                let alarm_with_id: AlarmWithIdDTO =
+                    match serde_json::from_str(&alarm_str) {
+                        Ok(alarm_with_id) => alarm_with_id,
+                        Err(_) => continue
+                    };
 
                 clock
                     .add_alarm(alarm_with_id.id.into(), alarm_with_id.alarm.into())
