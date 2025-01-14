@@ -39,7 +39,8 @@ impl<AlarmId> Clock<AlarmId>
 where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
     pub fn new<OnSynchronize, OnAlarm>(i2c_shared_proxy: I2cSharedProxy<'static>,
                                        on_synchronize: OnSynchronize,
-                                       on_alarm: OnAlarm) -> Result<Self, ClockError>
+                                       on_alarm: OnAlarm,
+                                       alarm_match_check_interval_ms: u64,) -> Result<Self, ClockError>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
           OnAlarm: Fn(&AlarmId, &Alarm, &DateTime<Utc>) + Send + 'static, {
 
@@ -58,7 +59,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             shutdown: Arc::new(RwLock::new(AtomicBool::new(false)))
         };
 
-        this.start_alarm_matching(on_synchronize, on_alarm);
+        this.start_alarm_matching(on_synchronize, on_alarm, alarm_match_check_interval_ms);
 
         Ok(this)
     }
@@ -151,7 +152,8 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
 
     fn start_alarm_matching<OnSynchronize, OnAlarm>(&mut self,
                                                     on_synchronize: OnSynchronize,
-                                                    on_alarm: OnAlarm) -> JoinHandle<()>
+                                                    on_alarm: OnAlarm,
+                                                    alarm_match_check_interval_ms: u64) -> JoinHandle<()>
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
           OnAlarm: Fn(&AlarmId, &Alarm, &DateTime<Utc>) + Send + 'static, {
 
@@ -195,7 +197,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
                 }
             }
 
-            thread::sleep(Duration::from_millis(500));
+            thread::sleep(Duration::from_millis(alarm_match_check_interval_ms));
         })
     }
 
