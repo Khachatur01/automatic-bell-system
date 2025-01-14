@@ -13,9 +13,8 @@ pub struct AccessPoint<'a> {
 impl<'a> AccessPoint<'a> {
     pub fn new(modem: modem::Modem, ssid: &str, password: &str) -> Result<Self, EspError> {
         let sys_loop: EspEventLoop<System> = EspSystemEventLoop::take()?;
-        let nvs: EspNvsPartition<NvsDefault> = EspDefaultNvsPartition::take()?;
 
-        let mut wifi: EspWifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
+        let mut wifi: EspWifi = EspWifi::new(modem, sys_loop, None)?;
         let mut configuration: AccessPointConfiguration = AccessPointConfiguration::default();
         configuration.ssid = ssid.parse().unwrap();
         configuration.password = password.parse().unwrap();

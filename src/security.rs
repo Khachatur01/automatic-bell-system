@@ -1,19 +1,20 @@
-mod error;
+pub mod error;
 
-use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, EspNvsPartition, NvsDefault};
+use esp_idf_svc::nvs::{EspCustomNvsPartition, EspDefaultNvsPartition, EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_svc::sys::EspError;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use crate::security::error::SecurityError;
 
+const NVS_PARTITION: &str = "secure";
 const NVS_NAMESPACE: &str = "secure";
 const ACCESS_TOKEN_LENGTH: usize = 256;
 
 const WIFI_PASSWORD_KEY: &str = "wifi_password";
-const DEFAULT_WIFI_PASSWORD: &str = "scheduler-rs";
+const WIFI_DEFAULT_PASSWORD: &str = "scheduler-rs";
 
-const API_PASSWORD_KEY: &str = "api_password_key";
-const DEFAULT_API_PASSWORD: &str = "scheduler-rs";
+const USER_PASSWORD_KEY: &str = "api_password_key";
+const USER_DEFAULT_PASSWORD: &str = "scheduler-rs";
 
 
 static mut SECURITY_CONTEXT: Option<SecurityContext> = None;
@@ -41,9 +42,9 @@ impl SecurityContext {
      */
     pub fn get_access_token(&self, _username: &str, password: &str) -> SecurityResult<String> {
         let actual_password: String = self
-            .nvs_read_str(API_PASSWORD_KEY)
+            .nvs_read_str(USER_PASSWORD_KEY)
             .map_err(SecurityError::EspError)?
-            .unwrap_or(String::from(DEFAULT_API_PASSWORD));
+            .unwrap_or(String::from(USER_DEFAULT_PASSWORD));
 
         if password != actual_password {
             return Err(SecurityError::WrongCredentials);
@@ -55,7 +56,7 @@ impl SecurityContext {
     pub fn get_access_point_password(&self) -> Result<String, EspError> {
         let password: String = self
             .nvs_read_str(WIFI_PASSWORD_KEY)?
-            .unwrap_or(String::from(DEFAULT_WIFI_PASSWORD));
+            .unwrap_or(String::from(WIFI_DEFAULT_PASSWORD));
 
         Ok(password)
     }
@@ -65,7 +66,7 @@ impl SecurityContext {
     }
 
     pub fn set_api_password(&mut self, new_password: &str) -> Result<(), EspError> {
-        self.nvs_write_str(API_PASSWORD_KEY, new_password)
+        self.nvs_write_str(USER_PASSWORD_KEY, new_password)
     }
 
     pub fn is_valid_wifi_password(&self, password: &str) -> Result<bool, EspError> {
@@ -88,23 +89,29 @@ impl SecurityContext {
 
 
     fn nvs_read_str(&self, key: &str) -> Result<Option<String>, EspError> {
+        log::info!("Reading from NVS by key '{key}'.");;
         let esp_nvs_partition: EspNvsPartition<NvsDefault> = EspDefaultNvsPartition::take()?;
         let esp_nvs: EspNvs<NvsDefault> = EspNvs::new(esp_nvs_partition, NVS_NAMESPACE, true)?;
+        log::info!("NVS initialized.");
 
         if let Some(password_length) = esp_nvs.str_len(key)? {
+            log::info!("Length of value is {password_length} for key '{key}'.");
             let mut password_buffer: Vec<u8> = vec![0; password_length];
 
             let password: Option<&str> = esp_nvs.get_str(key, password_buffer.as_mut_slice())?;
 
             Ok(password.map(String::from))
         } else {
+            log::warn!("Value in NVS does not exist for key {key}.");
             Ok(None)
         }
     }
 
     fn nvs_write_str(&mut self, key: &str, value: &str) -> Result<(), EspError> {
+        log::info!("Writing string '{value}' to NVS by key '{key}'.");
         let esp_nvs_partition: EspNvsPartition<NvsDefault> = EspDefaultNvsPartition::take()?;
         let mut esp_nvs: EspNvs<NvsDefault> = EspNvs::new(esp_nvs_partition, NVS_NAMESPACE, true)?;
+        log::info!("NVS initialized.");
 
         esp_nvs.set_str(key, value)
     }

@@ -40,7 +40,7 @@ fn get_clock(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
 }
 
 fn set_clock(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let clock: ClockDTO = request.read_all()?;
+    let clock: ClockDTO = request.read_body()?;
 
     let datetime: DateTime<Utc> =
         match DateTime::<Utc>::from_timestamp_millis(clock.timestamp_millis) {

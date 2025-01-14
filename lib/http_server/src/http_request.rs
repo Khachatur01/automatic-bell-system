@@ -1,5 +1,6 @@
 use esp_idf_svc::http::server::{Connection, Request, Response};
 use esp_idf_svc::io::Write;
+use esp_idf_svc::sys::EspError;
 use serde::de::{DeserializeOwned, Error as _};
 use serde::{Serialize};
 use crate::to_response_data::ToResponseData;
@@ -29,6 +30,7 @@ where C: Connection,
 
 #[derive(Debug)]
 pub enum RequestError<ConnectionError> {
+    EspError(EspError),
     SerdeJson(serde_json::Error),
     SerdeURL(serde_urlencoded::de::Error),
     Connection(ConnectionError),
@@ -52,6 +54,10 @@ where C: Connection,
 
     fn not_found<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
 
+    fn unauthorized<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
+
+    fn forbidden<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
+
     fn internal_server_error<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error>;
 }
 
@@ -67,6 +73,14 @@ where C: Connection {
 
     fn not_found<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
         status_response(self, 404, data, "Not found", &[])
+    }
+
+    fn unauthorized<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
+        status_response(self, 401, data, "Unauthorized", &[])
+    }
+
+    fn forbidden<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
+        status_response(self, 403, data, "Forbidden", &[])
     }
 
     fn internal_server_error<Data: ToResponseData>(self, data: &Data) -> RequestResult<(), C::Error> {
@@ -102,12 +116,12 @@ where C: Connection {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 pub trait ReadData<C>
 where C: Connection {
-    fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
+    fn read_body<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
 }
 
 impl<C> ReadData<C> for Request<C>
 where C: Connection {
-    fn read_all<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error> {
+    fn read_body<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error> {
         let content_length: usize = self
             .header("Content-Length")
             .and_then(|content_length| content_length.parse().ok())

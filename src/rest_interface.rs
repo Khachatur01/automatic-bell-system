@@ -8,7 +8,7 @@ use http_server::http_server::HttpServer;
 use std::sync::Arc;
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
-    auth_controller::serve(http_server, Arc::clone(&schedule_system))?;
+    auth_controller::serve(http_server)?;
     clock_controller::serve(http_server, Arc::clone(&schedule_system))?;
     alarm_controller::serve(http_server, Arc::clone(&schedule_system))?;
 
