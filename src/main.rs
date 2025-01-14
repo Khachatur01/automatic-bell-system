@@ -21,18 +21,28 @@ fn main() {
 
     /* Bind the log crate to the ESP Logging facilities */
     esp_idf_svc::log::EspLogger::initialize_default();
+    log::info!("Logger initialized.");
+    log::info!("Starting up...");
+    log::info!("Patches linked.");
 
     let peripherals: Peripherals = Peripherals::take().unwrap();
+    log::info!("Peripherals are ready.");
 
     let schedule_system: ScheduleSystem = ScheduleSystem::new(peripherals).unwrap();
+    log::info!("Schedule system is ready.");
+
     let schedule_system: Arc<ScheduleSystem> = Arc::new(schedule_system);
 
     schedule_system.enable_access_point().unwrap();
+    log::info!("Access point enabled.");
 
     let mut http_server: HttpServer = HttpServer::new().unwrap();
 
     rest_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
+    log::info!("Rest interface is ready.");
+
     web_interface::serve(&mut http_server, Arc::clone(&schedule_system)).unwrap();
+    log::info!("WEB interface is ready.");
 
     loop {
         thread::sleep(Duration::from_secs(10));

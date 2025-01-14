@@ -2,7 +2,7 @@ pub mod alarm_id;
 pub mod to_alarms_with_id;
 mod error;
 
-use crate::constant::{ALARMS_DIR, SYSTEM_DIR, WEB_UI_DIR};
+use crate::constant::{ALARMS_DIR, ALARM_MATCH_CHECK_INTERVAL, SYSTEM_DIR, WEB_UI_DIR};
 use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
@@ -33,6 +33,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
+use log::log;
 
 const ACCESS_POINT_SSID: &str = "Scheduler System";
 
@@ -60,6 +61,7 @@ impl ScheduleSystem {
 
         let i2c_bus_manager: &'static BusManagerStd<I2cDriver> = shared_bus::new_std!(I2cDriver = i2c_driver)
             .ok_or(ScheduleSystemError::I2cSharedBusError)?;
+        log::info!("I2C driver initialized.");
         /* Init I2c bus */
 
         /* Init SPI driver */
@@ -71,7 +73,8 @@ impl ScheduleSystem {
 
         let driver_config: DriverConfig = DriverConfig::default();
         let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).map_err(ScheduleSystemError::EspError)?;
-        /* Init SDA driver */
+        log::info!("SPI driver initialized.");
+        /* Init SPI driver */
 
         let alarm_output_pins: Vec<MutexOutputPin> = vec![
             Into::<AnyOutputPin>::into(peripherals.pins.gpio2)
@@ -82,14 +85,17 @@ impl ScheduleSystem {
                 .map_err(ScheduleSystemError::EspError)?,
         ];
         let output_pins_count: usize = alarm_output_pins.len();
+        log::info!("Alarm outputs initialized. Total count is {output_pins_count}.");
 
         /* clock */
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
-            |result| println!("Synchronizing..."),
-            move |alarm_id: &AlarmId, alarm: &Alarm, date_time| ScheduleSystem::on_alarm(alarm_id, alarm, date_time, &alarm_output_pins))
+            |result| log::info!("Synchronizing..."),
+            move |alarm_id: &AlarmId, alarm: &Alarm, date_time| ScheduleSystem::on_alarm(alarm_id, alarm, date_time, &alarm_output_pins),
+            ALARM_MATCH_CHECK_INTERVAL)
             .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_rwlock();
+        log::info!("Clock initialized.");
 
         /* access point */
         let security_context: &SecurityContext = SecurityContext::new()
@@ -100,16 +106,19 @@ impl ScheduleSystem {
         let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();
+        log::info!("Access point initialized.");
 
         /* disk */
         let disk: BoxedMutex<Disk> = Disk::new(spi_driver, cs)
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();
+        log::info!("Disk initialized.");
 
         /* display */
         let display: BoxedMutex<Display> = Display::new(i2c_bus_manager.acquire_i2c())
             .map_err(ScheduleSystemError::DisplayError)?
             .into_boxed_mutex();
+        log::info!("Display initialized.");
 
         let this: Self = Self {
             access_point,
@@ -119,24 +128,32 @@ impl ScheduleSystem {
         };
 
         this.init_filesystem(output_pins_count)?;
+        log::info!("File system initialized.");
+
         this.synchronize_alarms_from_disk()?;
+        log::info!("Alarms are synchronized from disk.");
 
         Ok(this)
     }
 
 
     fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
-        println!("Alarming {} {} {}", alarm_id.output_index, alarm_id.identifier, date_time);
-
         let output_index: usize = alarm_id.output_index as usize;
 
         let Some(output_pin) = alarm_output_pins.get(output_index) else {
+            log::warn!("Alarm output index {output_index} out of bounds. Skipping alarm...");
             return;
         };
 
         let Ok(mut output_pin_driver) = output_pin.try_lock() else {
+            log::warn!("Can't lock output GPIO pin {output_index}. Skipping alarm...");
             return;
         };
+
+        log::info!(
+            "Alarming: Output - {}, Id - {}, time - {}, impulse length {}ms.",
+            alarm_id.output_index, alarm_id.identifier, date_time, alarm.impulse_length_millis
+        );
 
         let _ = output_pin_driver.set_high();
         thread::sleep(Duration::from_millis(alarm.impulse_length_millis));
