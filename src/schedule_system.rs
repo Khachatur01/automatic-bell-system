@@ -2,10 +2,12 @@ pub mod alarm_id;
 pub mod to_alarms_with_id;
 mod error;
 
-use crate::model::alarm::alarm::AlarmDTO;
+use crate::constant::{ALARMS_DIR, SYSTEM_DIR, WEB_UI_DIR};
+use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
 use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
+use crate::security::SecurityContext;
 use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock, IntoMutexOutputPin, MutexOutputPin};
 use access_point::access_point::AccessPoint;
 use chrono::{DateTime, Utc};
@@ -31,8 +33,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
-use crate::constant::{ALARMS_DIR, OUTPUT_DIR, SYSTEM_DIR, WEB_UI_DIR};
-use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
+
+const ACCESS_POINT_SSID: &str = "Scheduler System";
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -81,6 +83,7 @@ impl ScheduleSystem {
         ];
         let output_pins_count: usize = alarm_output_pins.len();
 
+        /* clock */
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
             |result| println!("Synchronizing..."),
@@ -88,14 +91,22 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::ClockError)?
             .into_boxed_rwlock();
 
-        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem)
+        /* access point */
+        let security_context: &SecurityContext = SecurityContext::new()
+            .map_err(ScheduleSystemError::EspError)?;
+        let access_point_password: String = security_context
+            .get_access_point_password()
+            .map_err(ScheduleSystemError::EspError)?;
+        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();
 
+        /* disk */
         let disk: BoxedMutex<Disk> = Disk::new(spi_driver, cs)
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();
 
+        /* display */
         let display: BoxedMutex<Display> = Display::new(i2c_bus_manager.acquire_i2c())
             .map_err(ScheduleSystemError::DisplayError)?
             .into_boxed_mutex();

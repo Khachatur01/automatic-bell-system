@@ -4,6 +4,7 @@ mod web_interface;
 mod synchronizer;
 mod model;
 mod constant;
+mod security;
 
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::hal::prelude::Peripherals;

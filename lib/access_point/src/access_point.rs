@@ -3,7 +3,7 @@ use esp_idf_svc::eventloop::{EspEventLoop, EspSystemEventLoop, System};
 use esp_idf_svc::hal::modem;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvsPartition, NvsDefault};
 use esp_idf_svc::sys::EspError;
-use esp_idf_svc::wifi::{AccessPointConfiguration, Configuration, EspWifi};
+use esp_idf_svc::wifi::{AccessPointConfiguration, AuthMethod, Configuration, EspWifi};
 
 pub struct AccessPoint<'a> {
     wifi: EspWifi<'a>,
@@ -11,13 +11,15 @@ pub struct AccessPoint<'a> {
 }
 
 impl<'a> AccessPoint<'a> {
-    pub fn new(modem: modem::Modem) -> Result<Self, EspError> {
+    pub fn new(modem: modem::Modem, ssid: &str, password: &str) -> Result<Self, EspError> {
         let sys_loop: EspEventLoop<System> = EspSystemEventLoop::take()?;
         let nvs: EspNvsPartition<NvsDefault> = EspDefaultNvsPartition::take()?;
 
         let mut wifi: EspWifi = EspWifi::new(modem, sys_loop, Some(nvs))?;
         let mut configuration: AccessPointConfiguration = AccessPointConfiguration::default();
-        configuration.ssid = "AutoBell System".parse().unwrap();
+        configuration.ssid = ssid.parse().unwrap();
+        configuration.password = password.parse().unwrap();
+        configuration.auth_method = AuthMethod::WPA3Personal;
 
         wifi.set_configuration(&Configuration::AccessPoint(configuration.clone()))?;
 
