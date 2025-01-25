@@ -116,12 +116,12 @@ where C: Connection {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 pub trait ReadData<C>
 where C: Connection {
-    fn read_body<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
+    fn body<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error>;
 }
 
 impl<C> ReadData<C> for Request<C>
 where C: Connection {
-    fn read_body<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error> {
+    fn body<'a, Data: DeserializeOwned>(&mut self) -> RequestResult<Data, C::Error> {
         let content_length: usize = self
             .header("Content-Length")
             .and_then(|content_length| content_length.parse().ok())

@@ -79,7 +79,7 @@ fn get_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule
 fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
     let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
-    let alarm: Alarm = request.read_body::<AlarmDTO>()?.into();
+    let alarm: Alarm = request.body::<AlarmDTO>()?.into();
 
     schedule_system
         .add_alarm(output_index, alarm)

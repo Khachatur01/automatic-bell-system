@@ -98,27 +98,12 @@ impl ScheduleSystem {
         log::info!("Clock initialized.");
 
         /* access point */
-        let security_context: &SecurityContext = SecurityContext::new()
+        let security_context: &SecurityContext = SecurityContext::get()
             .map_err(ScheduleSystemError::EspError)?;
         let access_point_password: String = security_context
             .get_access_point_password()
             .map_err(ScheduleSystemError::EspError)?;
 
-
-        let security_context: &SecurityContext = SecurityContext::new()
-            .map_err(ScheduleSystemError::EspError)?;
-        let access_point_password_2: String = security_context
-            .get_access_point_password()
-            .map_err(ScheduleSystemError::EspError)?;
-
-
-        let security_context: &SecurityContext = SecurityContext::new()
-            .map_err(ScheduleSystemError::EspError)?;
-        let access_token: String = security_context
-            .get_access_token("", "scheduler-rs")
-            .unwrap();
-
-        log::error!("{access_point_password_2} - {access_token}");
         let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
             .map_err(ScheduleSystemError::EspError)?
             .into_boxed_mutex();

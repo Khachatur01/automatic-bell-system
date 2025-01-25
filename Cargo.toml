@@ -48,6 +48,8 @@ serde = { version = "1.0.216", features = ["derive"] }
 serde_json = { version = "1.0.134", features = ["raw_value"] }
 serde_urlencoded = "0.7.1"
 rand = "0.8.5"
+synchronized = "1.0.4"
+log = "0.4.22"
 
 clock = { path = "lib/clock" }
 display = { path = "lib/display" }
@@ -55,7 +57,6 @@ access_point = { path = "lib/access_point" }
 http_server = { path = "lib/http_server" }
 disk = { path = "lib/disk" }
 interface = { path = "lib/interface" }
-log = "0.4.22"
 
 [build-dependencies]
 embuild = "0.32.0"
