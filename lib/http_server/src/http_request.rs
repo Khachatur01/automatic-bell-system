@@ -34,6 +34,7 @@ pub enum RequestError<ConnectionError> {
     SerdeJson(serde_json::Error),
     SerdeURL(serde_urlencoded::de::Error),
     Connection(ConnectionError),
+    Security(String),
     General(String),
 }
 

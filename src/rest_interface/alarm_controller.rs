@@ -10,7 +10,6 @@ use http_server::http_request;
 use http_server::http_request::{IntoResponse, ReadData, ReadParameters, RequestError};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
-use http_server::http_request::ResponseData::{Json, Str};
 use crate::model::alarm::alarm::AlarmDTO;
 use crate::model::alarm::alarm_id::AlarmIdDTO;
 use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;

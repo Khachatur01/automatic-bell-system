@@ -7,9 +7,11 @@ use esp_idf_svc::io::EspIOError;
 use esp_idf_svc::sys::EspError;
 use http_request::RequestResult;
 use http_server::http_request;
-use http_server::http_request::{IntoResponse, ReadData};
+use http_server::http_request::{IntoResponse, ReadData, RequestError};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
+use crate::security::error::SecurityError;
+use crate::security::SecurityContext;
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
@@ -40,6 +42,22 @@ fn get_clock(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
 }
 
 fn set_clock(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    let access_token = request.header("Access-Token");
+
+    match access_token {
+        Some(access_token) => {
+            let is_valid_access_token: bool = SecurityContext::get()
+                .map_err(RequestError::EspError)?
+                .is_valid_access_token_token(access_token)
+                .map_err(|error: SecurityError| RequestError::Security(error.to_string()))?;
+
+            if !is_valid_access_token {
+                return request.bad_request(&"Invalid access token!");
+            }
+        },
+        None => return request.bad_request(&"Missing Access-Token header.")
+    }
+
     let clock: ClockDTO = request.body()?;
 
     let datetime: DateTime<Utc> =

@@ -30,9 +30,12 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
+use std::net::Ipv4Addr;
 use std::ops::Deref;
 use std::thread;
 use std::time::Duration;
+use esp_idf_svc::systime::EspSystemTime;
+use esp_idf_svc::ws::FrameType::Text;
 use log::log;
 
 const ACCESS_POINT_SSID: &str = "Scheduler System";
@@ -47,7 +50,7 @@ pub struct ScheduleSystem {
     /* Clock is RwLock, because it requires immutable reference for reading time. */
     clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
-    display: BoxedMutex<Display<'static>>,
+    // display: BoxedMutex<Display<'static>>,
 }
 
 impl ScheduleSystem {
@@ -92,9 +95,10 @@ impl ScheduleSystem {
             i2c_bus_manager.acquire_i2c(),
             |result| log::info!("Synchronizing..."),
             move |alarm_id: &AlarmId, alarm: &Alarm, date_time| ScheduleSystem::on_alarm(alarm_id, alarm, date_time, &alarm_output_pins),
-            ALARM_MATCH_CHECK_INTERVAL)
-            .map_err(ScheduleSystemError::ClockError)?
-            .into_boxed_rwlock();
+            ALARM_MATCH_CHECK_INTERVAL
+        )
+        .map_err(ScheduleSystemError::ClockError)?
+        .into_boxed_rwlock();
         log::info!("Clock initialized.");
 
         /* access point */
@@ -104,9 +108,13 @@ impl ScheduleSystem {
             .get_access_point_password()
             .map_err(ScheduleSystemError::EspError)?;
 
-        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
-            .map_err(ScheduleSystemError::EspError)?
-            .into_boxed_mutex();
+        let access_point: AccessPoint = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
+            .map_err(ScheduleSystemError::EspError)?;
+
+        let access_point_ip: Ipv4Addr = access_point.get_ipv4()
+            .map_err(ScheduleSystemError::EspError)?;
+
+        let access_point: BoxedMutex<AccessPoint> = access_point.into_boxed_mutex();
         log::info!("Access point initialized.");
 
         /* disk */
@@ -125,7 +133,7 @@ impl ScheduleSystem {
             access_point,
             clock,
             disk,
-            display,
+            // display,
         };
 
         this.init_filesystem(output_pins_count)?;
@@ -133,6 +141,22 @@ impl ScheduleSystem {
 
         this.synchronize_alarms_from_disk()?;
         log::info!("Alarms are synchronized from disk.");
+
+        thread::spawn(move || loop {
+            /* update time every second */
+            thread::sleep(Duration::from_secs(1));
+
+            let Ok(mut display) = display.lock() else {
+                continue;
+            };
+
+            let seconds: u64 = EspSystemTime.now().as_secs();
+            let Some(datetime) = DateTime::from_timestamp(seconds as i64, 0) else {
+                continue;
+            };
+
+            let _ = display.update(datetime.naive_utc().to_string(), access_point_ip.to_string());
+        });
 
         Ok(this)
     }
