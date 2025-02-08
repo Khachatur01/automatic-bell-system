@@ -30,6 +30,7 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
+use std::fmt::format;
 use std::net::Ipv4Addr;
 use std::ops::Deref;
 use std::thread;
@@ -50,7 +51,6 @@ pub struct ScheduleSystem {
     /* Clock is RwLock, because it requires immutable reference for reading time. */
     clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
-    // display: BoxedMutex<Display<'static>>,
 }
 
 impl ScheduleSystem {
@@ -78,6 +78,14 @@ impl ScheduleSystem {
         let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).map_err(ScheduleSystemError::EspError)?;
         log::info!("SPI driver initialized.");
         /* Init SPI driver */
+
+        /* display */
+        let display: Display = Display::new(i2c_bus_manager.acquire_i2c())
+            .map_err(ScheduleSystemError::DisplayError)?;
+        let mut display: Box<Display> = Box::new(display);
+
+        let _ = display.write_text("Booting...");
+        log::info!("Display initialized.");
 
         let alarm_output_pins: Vec<MutexOutputPin> = vec![
             Into::<AnyOutputPin>::into(peripherals.pins.gpio2)
@@ -108,13 +116,9 @@ impl ScheduleSystem {
             .get_access_point_password()
             .map_err(ScheduleSystemError::EspError)?;
 
-        let access_point: AccessPoint = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
-            .map_err(ScheduleSystemError::EspError)?;
-
-        let access_point_ip: Ipv4Addr = access_point.get_ipv4()
-            .map_err(ScheduleSystemError::EspError)?;
-
-        let access_point: BoxedMutex<AccessPoint> = access_point.into_boxed_mutex();
+        let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
+            .map_err(ScheduleSystemError::EspError)?
+            .into_boxed_mutex();
         log::info!("Access point initialized.");
 
         /* disk */
@@ -123,17 +127,10 @@ impl ScheduleSystem {
             .into_boxed_mutex();
         log::info!("Disk initialized.");
 
-        /* display */
-        let display: BoxedMutex<Display> = Display::new(i2c_bus_manager.acquire_i2c())
-            .map_err(ScheduleSystemError::DisplayError)?
-            .into_boxed_mutex();
-        log::info!("Display initialized.");
-
         let this: Self = Self {
             access_point,
             clock,
             disk,
-            // display,
         };
 
         this.init_filesystem(output_pins_count)?;
@@ -146,16 +143,17 @@ impl ScheduleSystem {
             /* update time every second */
             thread::sleep(Duration::from_secs(1));
 
-            let Ok(mut display) = display.lock() else {
-                continue;
-            };
-
             let seconds: u64 = EspSystemTime.now().as_secs();
             let Some(datetime) = DateTime::from_timestamp(seconds as i64, 0) else {
                 continue;
             };
 
-            let _ = display.update(datetime.naive_utc().to_string(), access_point_ip.to_string());
+            let datetime: String = datetime
+                .naive_utc()
+                .format("%d/%m/%Y\n%H:%M:%S")
+                .to_string();
+
+            let _ = display.write_text(datetime.as_str());
         });
 
         Ok(this)
