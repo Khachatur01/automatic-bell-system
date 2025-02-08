@@ -9,6 +9,7 @@ use http_server::http_request::{IntoResponse, ReadData, RequestError, RequestRes
 use http_server::http_server::HttpServer;
 use crate::model::auth::access_point_credentials::AccessPointCredentials;
 use crate::model::auth::api_credentials::ApiCredentials;
+use crate::rest_interface::security::authenticate_request;
 
 pub fn serve(http_server: &mut HttpServer) -> Result<(), EspError> {
     http_server.add_handler(
@@ -38,13 +39,15 @@ fn login(mut request: Request<&mut EspHttpConnection>) -> RequestResult<(), EspI
             match error {
                 SecurityError::EspError(error) => Err(RequestError::EspError(error)),
                 SecurityError::WrongCredentials => request.forbidden(&"Unable to get access token. Wrong password."),
-                SecurityError::ReadLockError => request.internal_server_error(&"Can't lock security context for reading token.."),
-                SecurityError::WriteLockError => request.internal_server_error(&"Can't lock security context for writing token.."),
+                SecurityError::ReadLockError => request.internal_server_error(&"Can't lock security context for reading token."),
+                SecurityError::WriteLockError => request.internal_server_error(&"Can't lock security context for writing token."),
             }
     }
 }
 
 fn change_user_password(mut request: Request<&mut EspHttpConnection>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let security_context: &SecurityContext = SecurityContext::get().map_err(RequestError::EspError)?;
 
     let ApiCredentials { password } = request.body()?;
@@ -55,6 +58,8 @@ fn change_user_password(mut request: Request<&mut EspHttpConnection>) -> Request
 }
 
 fn change_access_point_password(mut request: Request<&mut EspHttpConnection>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let security_context: &SecurityContext = SecurityContext::get().map_err(RequestError::EspError)?;
 
     let AccessPointCredentials { password } = request.body()?;

@@ -10,6 +10,7 @@ use http_server::http_request;
 use http_server::http_request::{IntoResponse, ReadData, RequestError};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
+use crate::rest_interface::security::authenticate_request;
 use crate::security::error::SecurityError;
 use crate::security::SecurityContext;
 
@@ -42,21 +43,7 @@ fn get_clock(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
 }
 
 fn set_clock(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
-    let access_token = request.header("Access-Token");
-
-    match access_token {
-        Some(access_token) => {
-            let is_valid_access_token: bool = SecurityContext::get()
-                .map_err(RequestError::EspError)?
-                .is_valid_access_token_token(access_token)
-                .map_err(|error: SecurityError| RequestError::Security(error.to_string()))?;
-
-            if !is_valid_access_token {
-                return request.bad_request(&"Invalid access token!");
-            }
-        },
-        None => return request.bad_request(&"Missing Access-Token header.")
-    }
+    authenticate_request(&request)?;
 
     let clock: ClockDTO = request.body()?;
 

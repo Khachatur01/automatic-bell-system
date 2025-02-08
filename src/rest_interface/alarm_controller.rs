@@ -14,6 +14,7 @@ use crate::model::alarm::alarm::AlarmDTO;
 use crate::model::alarm::alarm_id::AlarmIdDTO;
 use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
 use crate::model::alarm::output_index::OutputIndexDTO;
+use crate::rest_interface::security::authenticate_request;
 use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
@@ -51,6 +52,8 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 }
 
 fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let alarm_id: AlarmId = request.parameters::<AlarmIdDTO>()?.into();
 
     let alarm: Alarm =
@@ -64,6 +67,8 @@ fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<Sch
 }
 
 fn get_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
     let alarms_with_id_dto: Vec<AlarmWithIdDTO> =
@@ -76,6 +81,8 @@ fn get_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule
 }
 
 fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
     let alarm: Alarm = request.body::<AlarmDTO>()?.into();
@@ -88,6 +95,8 @@ fn add_alarm(mut request: Request<&mut EspHttpConnection>, schedule_system: &Arc
 }
 
 fn delete_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let alarm_id: AlarmId = request.parameters::<AlarmIdDTO>()?.into();
 
     schedule_system
@@ -98,6 +107,8 @@ fn delete_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<
 }
 
 fn delete_alarms_by_output_index(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
     let output_index: u8 = *request.parameters::<OutputIndexDTO>()?;
 
     schedule_system

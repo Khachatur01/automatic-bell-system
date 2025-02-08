@@ -115,6 +115,7 @@ impl ScheduleSystem {
         let access_point_password: String = security_context
             .get_access_point_password()
             .map_err(ScheduleSystemError::EspError)?;
+        log::info!("Access point password - '{access_point_password}'.");
 
         let access_point: BoxedMutex<AccessPoint> = AccessPoint::new(peripherals.modem, ACCESS_POINT_SSID, access_point_password.as_str())
             .map_err(ScheduleSystemError::EspError)?
@@ -140,9 +141,6 @@ impl ScheduleSystem {
         log::info!("Alarms are synchronized from disk.");
 
         thread::spawn(move || loop {
-            /* update time every second */
-            thread::sleep(Duration::from_secs(1));
-
             let seconds: u64 = EspSystemTime.now().as_secs();
             let Some(datetime) = DateTime::from_timestamp(seconds as i64, 0) else {
                 continue;
@@ -154,6 +152,9 @@ impl ScheduleSystem {
                 .to_string();
 
             let _ = display.write_text(datetime.as_str());
+
+            /* update time every second */
+            thread::sleep(Duration::from_secs(1));
         });
 
         Ok(this)

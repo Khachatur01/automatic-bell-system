@@ -1,6 +1,7 @@
 mod auth_controller;
 mod clock_controller;
 mod alarm_controller;
+mod security;
 
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::sys::EspError;
