@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use crate::PathParseError;
 use crate::PathParseError::{EmptyPath, PathShouldBeAbsolute};
 
@@ -33,5 +34,11 @@ impl From<&[&str]> for DirectoryPath {
                 .map(ToString::to_string)
                 .collect(),
         }
+    }
+}
+
+impl Display for DirectoryPath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.directories_path.join("/"))
     }
 }

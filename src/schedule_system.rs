@@ -2,7 +2,7 @@ pub mod alarm_id;
 pub mod to_alarms_with_id;
 mod error;
 
-use crate::constant::{ALARMS_DIR, ALARM_MATCH_CHECK_INTERVAL, SYSTEM_DIR, WEB_UI_DIR};
+use crate::constant::{ACCESS_POINT_SSID, ALARMS_DIR, ALARM_MATCH_CHECK_INTERVAL_MS, RESET_BUTTON_PRESS_TIME_SECONDS, SYSTEM_DIR, WEB_UI_DIR};
 use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
@@ -15,7 +15,7 @@ use clock::alarm::Alarm;
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use esp_idf_svc::hal::gpio::{AnyOutputPin, OutputPin, Pin};
+use esp_idf_svc::hal::gpio::{AnyOutputPin, InterruptType, OutputPin, Pin, PinDriver, Pull};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
 use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -33,13 +33,12 @@ use std::collections::HashMap;
 use std::fmt::format;
 use std::net::Ipv4Addr;
 use std::ops::Deref;
+use std::process::exit;
 use std::thread;
 use std::time::Duration;
 use esp_idf_svc::systime::EspSystemTime;
 use esp_idf_svc::ws::FrameType::Text;
 use log::log;
-
-const ACCESS_POINT_SSID: &str = "Scheduler System";
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -75,9 +74,59 @@ impl ScheduleSystem {
         let cs = peripherals.pins.gpio5;
 
         let driver_config: DriverConfig = DriverConfig::default();
-        let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config).map_err(ScheduleSystemError::EspError)?;
+        let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config)
+            .map_err(ScheduleSystemError::EspError)?;
         log::info!("SPI driver initialized.");
         /* Init SPI driver */
+
+        /* Init reset button */
+        let mut reset_button = PinDriver::input(peripherals.pins.gpio13)
+            .map_err(ScheduleSystemError::EspError)?;
+        reset_button.set_pull(Pull::Up)
+            .map_err(ScheduleSystemError::EspError)?;
+
+        thread::spawn(move || {
+            let mut press_time: Option<u64> = None;
+
+            loop {
+                thread::sleep(Duration::from_secs(1));
+
+                /* fix time when button pressed */
+                if press_time.is_none() && reset_button.is_low() {
+                    press_time = Some(EspSystemTime.now().as_secs())
+                }
+
+                /* drop press time when button released */
+                if reset_button.is_high() {
+                    press_time = None;
+                }
+
+                let Some(press_time_secs) = press_time else {
+                    continue;
+                };
+
+                let seconds_passed: u64 = EspSystemTime.now().as_secs() - press_time_secs;
+                if seconds_passed != RESET_BUTTON_PRESS_TIME_SECONDS {
+                    continue;
+                }
+
+                press_time = None;
+
+                log::info!("Resetting...");
+                let Ok(security_context) = SecurityContext::get() else {
+                    return;
+                };
+                log::info!("Got security context.");
+
+                let _ = security_context.reset_access_point_password();
+                let _ = security_context.reset_api_password();
+
+                log::info!("Reset.");
+                log::info!("Rebooting...");
+                exit(0);
+            }
+        });
+        /* Init reset button */
 
         /* display */
         let display: Display = Display::new(i2c_bus_manager.acquire_i2c())
@@ -103,7 +152,7 @@ impl ScheduleSystem {
             i2c_bus_manager.acquire_i2c(),
             |result| log::info!("Synchronizing..."),
             move |alarm_id: &AlarmId, alarm: &Alarm, date_time| ScheduleSystem::on_alarm(alarm_id, alarm, date_time, &alarm_output_pins),
-            ALARM_MATCH_CHECK_INTERVAL
+            ALARM_MATCH_CHECK_INTERVAL_MS
         )
         .map_err(ScheduleSystemError::ClockError)?
         .into_boxed_rwlock();
@@ -346,16 +395,19 @@ impl ScheduleSystem {
             .disk
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?;
+        log::info!("Disk lock acquired!");
 
         let path: DirectoryPath = [SYSTEM_DIR, WEB_UI_DIR].as_slice().into();
 
         disk.make_dir(&path)
             .map_err(ScheduleSystemError::DiskError)?;
+        log::info!("Created dir '{path}'.");
 
         let path: DirectoryPath = [SYSTEM_DIR, ALARMS_DIR].as_slice().into();
 
         disk.make_dir(&path)
             .map_err(ScheduleSystemError::DiskError)?;
+        log::info!("Created dir '{path}'.");
 
         for output_index in 0..outputs_count {
             let path: DirectoryPath = [
