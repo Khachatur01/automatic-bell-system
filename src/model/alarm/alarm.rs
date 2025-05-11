@@ -1,10 +1,10 @@
 use chrono::{Month, Weekday};
-use clock::alarm::{Alarm, AlarmMarcher};
+use clock::alarm::{Alarm, AlarmMatcher};
+use http_server::to_response_data::ToResponseData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fmt::Display;
 use std::hash::Hash;
-use http_server::to_response_data::ToResponseData;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum WeekdayDTO {
@@ -46,7 +46,6 @@ impl From<Weekday> for WeekdayDTO {
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]
 pub enum MonthDTO {
@@ -104,75 +103,66 @@ impl From<Month> for MonthDTO {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
-pub enum AlarmMarcherDTO<T: Eq + Hash + Clone + Serialize> {
+#[serde(tag = "tag")]
+pub enum AlarmMatcherDTO<T: Eq + Hash + Clone + Serialize> {
     Ignore,
-    Match(HashSet<T>),
-    DoNotMatch(HashSet<T>),
+    Match { segments: HashSet<T> },
+    DoNotMatch { segments: HashSet<T> },
 }
 
-impl<T: Eq + Hash + Clone + Serialize> ToResponseData for AlarmMarcherDTO<T> {}
+impl<T: Eq + Hash + Clone + Serialize> ToResponseData for AlarmMatcherDTO<T> {}
 
-impl<Dto, T> From<AlarmMarcherDTO<Dto>> for AlarmMarcher<T>
-where Dto: Eq + Hash + Clone + Serialize,
-      T: Eq + Hash + Clone + From<Dto> {
-    fn from(alarm_matcher_dto: AlarmMarcherDTO<Dto>) -> Self {
+impl<Dto, T> From<AlarmMatcherDTO<Dto>> for AlarmMatcher<T>
+where
+    Dto: Eq + Hash + Clone + Serialize,
+    T: Eq + Hash + Clone + From<Dto>,
+{
+    fn from(alarm_matcher_dto: AlarmMatcherDTO<Dto>) -> Self {
         match alarm_matcher_dto {
-            AlarmMarcherDTO::Ignore => AlarmMarcher::Ignore,
-            AlarmMarcherDTO::Match(hashset) => AlarmMarcher::Match(
+            AlarmMatcherDTO::Ignore => AlarmMatcher::Ignore,
+            AlarmMatcherDTO::Match { segments } => AlarmMatcher::Match(
                 /* map all dto elements of hashmap */
-                hashset
-                    .into_iter()
-                    .map(Into::into)
-                    .collect()
+                segments.into_iter().map(Into::into).collect(),
             ),
-            AlarmMarcherDTO::DoNotMatch(hashset) => AlarmMarcher::DoNotMatch(
+            AlarmMatcherDTO::DoNotMatch { segments } => AlarmMatcher::DoNotMatch(
                 /* map all dto elements of hashmap */
-                hashset
-                    .into_iter()
-                    .map(Into::into)
-                    .collect()
-            )
+                segments.into_iter().map(Into::into).collect(),
+            ),
         }
     }
 }
 
-impl<Dto, T> From<AlarmMarcher<T>> for AlarmMarcherDTO<Dto>
-where Dto: Eq + Hash + Clone + From<T> + Serialize,
-      T: Eq + Hash + Clone {
-    fn from(alarm_matcher: AlarmMarcher<T>) -> Self {
+impl<Dto, T> From<AlarmMatcher<T>> for AlarmMatcherDTO<Dto>
+where
+    Dto: Eq + Hash + Clone + From<T> + Serialize,
+    T: Eq + Hash + Clone,
+{
+    fn from(alarm_matcher: AlarmMatcher<T>) -> Self {
         match alarm_matcher {
-            AlarmMarcher::Ignore => AlarmMarcherDTO::Ignore,
-            AlarmMarcher::Match(hashset) => AlarmMarcherDTO::Match(
+            AlarmMatcher::Ignore => AlarmMatcherDTO::Ignore,
+            AlarmMatcher::Match(hashset) => AlarmMatcherDTO::Match {
                 /* map all dto elements of hashmap */
-                hashset
-                    .into_iter()
-                    .map(Into::into)
-                    .collect()
-            ),
-            AlarmMarcher::DoNotMatch(hashset) => AlarmMarcherDTO::DoNotMatch(
+                segments: hashset.into_iter().map(Into::into).collect(),
+            },
+            AlarmMatcher::DoNotMatch(hashset) => AlarmMatcherDTO::DoNotMatch {
                 /* map all dto elements of hashmap */
-                hashset
-                    .into_iter()
-                    .map(Into::into)
-                    .collect()
-            )
+                segments: hashset.into_iter().map(Into::into).collect(),
+            },
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AlarmDTO {
-    pub year: AlarmMarcherDTO<u16>,
-    pub month: AlarmMarcherDTO<MonthDTO>,
-    pub month_day: AlarmMarcherDTO<u8>,
-    pub week_day: AlarmMarcherDTO<WeekdayDTO>,
+    pub year: AlarmMatcherDTO<u16>,
+    pub month: AlarmMatcherDTO<MonthDTO>,
+    pub month_day: AlarmMatcherDTO<u8>,
+    pub week_day: AlarmMatcherDTO<WeekdayDTO>,
 
-    pub hour: AlarmMarcherDTO<u8>,
-    pub minute: AlarmMarcherDTO<u8>,
-    pub second: AlarmMarcherDTO<u8>,
+    pub hour: AlarmMatcherDTO<u8>,
+    pub minute: AlarmMatcherDTO<u8>,
+    pub second: AlarmMatcherDTO<u8>,
 
     pub impulse_length_millis: u64,
 }

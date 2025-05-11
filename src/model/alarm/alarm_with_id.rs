@@ -3,7 +3,6 @@ use crate::model::alarm::alarm_id::AlarmIdDTO;
 use crate::schedule_system::alarm_id::AlarmId;
 use clock::alarm::Alarm;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use http_server::to_response_data::ToResponseData;
 
 #[derive(Serialize, Deserialize, Debug)]

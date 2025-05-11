@@ -12,6 +12,7 @@ use embedded_graphics::mono_font::ascii::FONT_9X18_BOLD;
 use embedded_graphics::mono_font::MonoTextStyleBuilder;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::text::{Baseline, Text};
+use log::log;
 
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
 type Driver<'a> = Ssd1306<I2CInterface<I2cSharedProxy<'a>>, DisplaySize128x32, BufferedGraphicsMode<DisplaySize128x32>>;
@@ -28,9 +29,16 @@ impl<'a> Display<'a> {
             DisplayRotation::Rotate0,
         ).into_buffered_graphics_mode();
 
+        log::info!("Initializing display driver...");
         display_driver.init()?;
+        log::info!("Display driver initialized!");
+
+        log::info!("Clearing display buffer.");
         display_driver.clear_buffer();
+
+        log::info!("Flashing display driver...");
         display_driver.flush()?;
+        log::info!("Display driver flashed...");
 
         Ok(Self { driver: display_driver })
     }

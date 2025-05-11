@@ -56,8 +56,10 @@ impl ScheduleSystem {
     pub fn new(peripherals: Peripherals) -> Result<Self, ScheduleSystemError> {
         /* Init I2c bus */
         let i2c = peripherals.i2c0;
-        let sda = peripherals.pins.gpio22;
-        let scl = peripherals.pins.gpio23;
+        let sda = peripherals.pins.gpio23;
+        let scl = peripherals.pins.gpio22;
+        // let sda = peripherals.pins.gpio22;
+        // let scl = peripherals.pins.gpio23;
         let i2c_config = I2cConfig::default();
         let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).map_err(ScheduleSystemError::EspError)?;
 
@@ -67,10 +69,15 @@ impl ScheduleSystem {
         /* Init I2c bus */
 
         /* Init SPI driver */
+        // let spi = peripherals.spi2;
+        // let scl = peripherals.pins.gpio18;
+        // let sdo = peripherals.pins.gpio19;
+        // let sdi = peripherals.pins.gpio21;
+        // let cs = peripherals.pins.gpio5;
         let spi = peripherals.spi2;
-        let scl = peripherals.pins.gpio18;
+        let scl = peripherals.pins.gpio21;
         let sdo = peripherals.pins.gpio19;
-        let sdi = peripherals.pins.gpio21;
+        let sdi = peripherals.pins.gpio18;
         let cs = peripherals.pins.gpio5;
 
         let driver_config: DriverConfig = DriverConfig::default();
@@ -86,6 +93,7 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::EspError)?;
 
         thread::spawn(move || {
+            return;
             let mut press_time: Option<u64> = None;
 
             loop {
@@ -137,7 +145,7 @@ impl ScheduleSystem {
         log::info!("Display initialized.");
 
         let alarm_output_pins: Vec<MutexOutputPin> = vec![
-            Into::<AnyOutputPin>::into(peripherals.pins.gpio2)
+            Into::<AnyOutputPin>::into(peripherals.pins.gpio14)
                 .try_into_mutex_output_pin()
                 .map_err(ScheduleSystemError::EspError)?,
             Into::<AnyOutputPin>::into(peripherals.pins.gpio4)
@@ -150,7 +158,7 @@ impl ScheduleSystem {
         /* clock */
         let clock: BoxedRwLock<Clock<AlarmId>> = Clock::new(
             i2c_bus_manager.acquire_i2c(),
-            |result| log::info!("Synchronizing..."),
+            |_| log::info!("Synchronizing..."),
             move |alarm_id: &AlarmId, alarm: &Alarm, date_time| ScheduleSystem::on_alarm(alarm_id, alarm, date_time, &alarm_output_pins),
             ALARM_MATCH_CHECK_INTERVAL_MS
         )
@@ -183,11 +191,11 @@ impl ScheduleSystem {
             disk,
         };
 
-        this.init_filesystem(output_pins_count)?;
-        log::info!("File system initialized.");
-
-        this.synchronize_alarms_from_disk()?;
-        log::info!("Alarms are synchronized from disk.");
+        // this.init_filesystem(output_pins_count)?;
+        // log::info!("File system initialized.");
+        //
+        // this.synchronize_alarms_from_disk()?;
+        // log::info!("Alarms are synchronized from disk.");
 
         thread::spawn(move || loop {
             let seconds: u64 = EspSystemTime.now().as_secs();
@@ -230,6 +238,11 @@ impl ScheduleSystem {
 
         let _ = output_pin_driver.set_high();
         thread::sleep(Duration::from_millis(alarm.impulse_length_millis));
+
+        log::info!(
+            "Stoping alarm: Output - {}, Id - {}, time - {}.",
+            alarm_id.output_index, alarm_id.identifier, date_time
+        );
         let _ = output_pin_driver.set_low();
     }
 }
@@ -358,11 +371,11 @@ impl ScheduleSystem {
             }
         };
 
-        self.write_alarm_to_disk(alarm_id.clone(), alarm.clone())?;
-
         clock
-            .add_alarm(alarm_id, alarm)
+            .add_alarm(alarm_id.clone(), alarm.clone())
             .map_err(ScheduleSystemError::ClockError)?;
+
+        // self.write_alarm_to_disk(alarm_id, alarm)?;
 
         Ok(())
     }

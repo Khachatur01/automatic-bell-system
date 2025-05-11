@@ -4,7 +4,7 @@ use std::hash::Hash;
 use chrono::{DateTime, Datelike, Month, Timelike, Utc, Weekday};
 
 #[derive(Clone)]
-pub enum AlarmMarcher<T: Eq + Hash + Clone> {
+pub enum AlarmMatcher<T: Eq + Hash + Clone> {
     Ignore,
     Match(HashSet<T>),
     DoNotMatch(HashSet<T>)
@@ -12,14 +12,14 @@ pub enum AlarmMarcher<T: Eq + Hash + Clone> {
 
 #[derive(Clone)]
 pub struct Alarm {
-    pub year: AlarmMarcher<u16>,
-    pub month: AlarmMarcher<Month>,
-    pub month_day: AlarmMarcher<u8>,
-    pub week_day: AlarmMarcher<Weekday>,
+    pub year: AlarmMatcher<u16>,
+    pub month: AlarmMatcher<Month>,
+    pub month_day: AlarmMatcher<u8>,
+    pub week_day: AlarmMatcher<Weekday>,
 
-    pub hour: AlarmMarcher<u8>,
-    pub minute: AlarmMarcher<u8>,
-    pub second: AlarmMarcher<u8>,
+    pub hour: AlarmMatcher<u8>,
+    pub minute: AlarmMatcher<u8>,
+    pub second: AlarmMatcher<u8>,
 
     /* Impulse length in milliseconds when alarm triggered. */
     pub impulse_length_millis: u64,
@@ -42,13 +42,13 @@ impl Alarm {
         Alarm::segment_matches(&self.second, &(datetime.second() as u8))
     }
 
-    fn segment_matches<T: Eq + Hash + Clone>(alarm_matcher: &AlarmMarcher<T>, segment: &T) -> bool {
+    fn segment_matches<T: Eq + Hash + Clone>(alarm_matcher: &AlarmMatcher<T>, segment: &T) -> bool {
         match alarm_matcher {
-            AlarmMarcher::Ignore => true,
-            AlarmMarcher::Match(match_set) => {
+            AlarmMatcher::Ignore => true,
+            AlarmMatcher::Match(match_set) => {
                 match_set.contains(segment)
             }
-            AlarmMarcher::DoNotMatch(do_not_match_set) => {
+            AlarmMatcher::DoNotMatch(do_not_match_set) => {
                 !do_not_match_set.contains(segment)
             }
         }
