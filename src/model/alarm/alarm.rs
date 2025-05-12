@@ -3,7 +3,6 @@ use clock::alarm::{Alarm, AlarmMatcher};
 use http_server::to_response_data::ToResponseData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::fmt::Display;
 use std::hash::Hash;
 
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq, Hash, Clone)]

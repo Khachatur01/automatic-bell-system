@@ -17,6 +17,10 @@ pub fn serve(http_server: &mut HttpServer) -> Result<(), EspError> {
         move |request| login(request)
     )?;
     http_server.add_handler(
+        "/api/v1/access-token-validity", Method::Post,
+        move |request| check_access_token_validity(request)
+    )?;
+    http_server.add_handler(
         "/api/v1/user/password", Method::Patch,
         move |request| change_user_password(request)
     )?;
@@ -43,6 +47,12 @@ fn login(mut request: Request<&mut EspHttpConnection>) -> RequestResult<(), EspI
                 SecurityError::WriteLockError => request.internal_server_error(&"Can't lock security context for writing token."),
             }
     }
+}
+
+fn check_access_token_validity(request: Request<&mut EspHttpConnection>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
+    request.ok(&"Access token is valid.")
 }
 
 fn change_user_password(mut request: Request<&mut EspHttpConnection>) -> RequestResult<(), EspIOError> {

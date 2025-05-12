@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::Serialize;
 
 pub trait ToResponseData where Self: Serialize {

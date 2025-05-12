@@ -1,6 +1,5 @@
 use http_server::to_response_data::ToResponseData;
 use serde::{Deserialize, Serialize};
-use std::fmt::Display;
 use std::ops::Deref;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug, Serialize, Deserialize)]

@@ -9,7 +9,7 @@ use crate::constant::{SYSTEM_DIR, WEB_UI_DIR};
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let ui_files_location: String = format!("/{SYSTEM_DIR}/{WEB_UI_DIR}");
 
-    let mut schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
+    let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
 
     http_server.add_handler("/*?", Method::Get, move |request| {
         let filepath: String = match request.uri() {

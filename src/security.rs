@@ -1,8 +1,7 @@
 pub mod error;
 
-use std::ops::Deref;
 use std::sync::{Arc, RwLock};
-use esp_idf_svc::nvs::{EspCustomNvsPartition, EspDefaultNvsPartition, EspNvs, EspNvsPartition, NvsDefault};
+use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvs, EspNvsPartition, NvsDefault};
 use esp_idf_svc::sys::EspError;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -108,7 +107,7 @@ impl SecurityContext {
 
     fn nvs_read_str(key: &str) -> Result<Option<String>, EspError> {
         synchronized!{
-            log::info!("Reading from NVS by key '{key}'.");;
+            log::info!("Reading from NVS by key '{key}'.");
             let esp_nvs_partition: EspNvsPartition<NvsDefault> = EspDefaultNvsPartition::take()?;
             let esp_nvs: EspNvs<NvsDefault> = EspNvs::new(esp_nvs_partition, NVS_NAMESPACE, true)?;
             log::info!("NVS initialized.");

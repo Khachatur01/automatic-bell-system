@@ -3,7 +3,7 @@ use crate::system_time::SystemTime;
 use chrono::{DateTime, NaiveDateTime, Timelike, Utc};
 use ds323x::interface::I2cInterface;
 use ds323x::{ic, DateTimeAccess, Ds323x};
-use esp_idf_svc::hal::i2c::{I2cDriver, I2cError};
+use esp_idf_svc::hal::i2c::{I2cDriver};
 use esp_idf_svc::systime::EspSystemTime;
 use interface::clock::{ReadClock, WriteClock};
 use interface::ClockError;
@@ -16,11 +16,9 @@ use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-type Error = ds323x::Error<I2cError, ()>;
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
 type Driver<'a> = Ds323x<I2cInterface<I2cSharedProxy<'a>>, ic::DS3231>;
 
-type Callback<AlarmId> = dyn Fn(&AlarmId, &DateTime<Utc>) + Send + Sync + 'static;
 type Alarms<AlarmId> = HashMap<AlarmId, Alarm>;
 
 
@@ -44,7 +42,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
     where OnSynchronize: Fn(Result<(), ClockError>) + Send + 'static,
           OnAlarm: Fn(&AlarmId, &Alarm, &DateTime<Utc>) + Send + 'static, {
 
-        let mut driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
+        let driver: Driver = Ds323x::new_ds3231(i2c_shared_proxy);
 
         let mut api = Api {
             rtc_driver: driver,
@@ -179,7 +177,7 @@ where AlarmId: Eq + Hash + Send + Sync + Clone + 'static {
             if let Ok(alarms) = alarms_lock.read() {
                 alarms
                     .iter()
-                    .filter(|(id, alarm)| alarm.matches(&datetime))
+                    .filter(|(_, alarm)| alarm.matches(&datetime))
                     .for_each(|(id, alarm)| on_alarm(id, alarm, &datetime));
             }
 

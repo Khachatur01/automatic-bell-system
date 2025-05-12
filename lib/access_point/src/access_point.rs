@@ -1,7 +1,6 @@
 use std::net::Ipv4Addr;
 use esp_idf_svc::eventloop::{EspEventLoop, EspSystemEventLoop, System};
 use esp_idf_svc::hal::modem;
-use esp_idf_svc::nvs::{EspDefaultNvsPartition, EspNvsPartition, NvsDefault};
 use esp_idf_svc::sys::EspError;
 use esp_idf_svc::wifi::{AccessPointConfiguration, AuthMethod, Configuration, EspWifi};
 

@@ -6,7 +6,6 @@ use crate::constant::{ACCESS_POINT_SSID, ALARMS_DIR, ALARM_MATCH_CHECK_INTERVAL_
 use crate::model::alarm::alarm_with_id::AlarmWithIdDTO;
 use crate::schedule_system::alarm_id::AlarmId;
 use crate::schedule_system::error::ScheduleSystemError;
-use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 use crate::security::SecurityContext;
 use crate::synchronizer::{BoxedMutex, BoxedRwLock, IntoBoxedMutex, IntoBoxedRwLock, IntoMutexOutputPin, MutexOutputPin};
 use access_point::access_point::AccessPoint;
@@ -15,13 +14,11 @@ use clock::alarm::Alarm;
 use clock::clock::Clock;
 use disk::disk::Disk;
 use display::display::Display;
-use esp_idf_svc::hal::gpio::{AnyOutputPin, InterruptType, OutputPin, Pin, PinDriver, Pull};
+use esp_idf_svc::hal::gpio::{AnyOutputPin, PinDriver, Pull};
 use esp_idf_svc::hal::i2c::{I2cConfig, I2cDriver};
-use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::hal::spi::config::DriverConfig;
 use esp_idf_svc::hal::spi::SpiDriver;
-use http_server::to_response_data::ToResponseData;
 use interface::clock::{ReadClock, WriteClock};
 use interface::disk::path::directory_path::DirectoryPath;
 use interface::disk::path::file_path::FilePath;
@@ -30,15 +27,10 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use shared_bus::BusManagerStd;
 use std::collections::HashMap;
-use std::fmt::format;
-use std::net::Ipv4Addr;
-use std::ops::Deref;
 use std::process::exit;
 use std::thread;
 use std::time::Duration;
 use esp_idf_svc::systime::EspSystemTime;
-use esp_idf_svc::ws::FrameType::Text;
-use log::log;
 
 type ScheduleSystemResult<Ok> = Result<Ok, ScheduleSystemError>;
 type AlarmOutputs<'a> = Vec<MutexOutputPin<'a>>;
@@ -50,6 +42,7 @@ pub struct ScheduleSystem {
     /* Clock is RwLock, because it requires immutable reference for reading time. */
     clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
+    // alarm_output_pins: AlarmOutputs<'static>,
 }
 
 impl ScheduleSystem {
@@ -189,6 +182,7 @@ impl ScheduleSystem {
             access_point,
             clock,
             disk,
+            // alarm_output_pins
         };
 
         this.init_filesystem(output_pins_count)?;
@@ -218,7 +212,7 @@ impl ScheduleSystem {
     }
 
 
-    fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &Vec<MutexOutputPin>) {
+    fn on_alarm(alarm_id: &AlarmId, alarm: &Alarm, date_time: &DateTime<Utc>, alarm_output_pins: &AlarmOutputs) {
         let output_index: usize = alarm_id.output_index as usize;
 
         let Some(output_pin) = alarm_output_pins.get(output_index) else {

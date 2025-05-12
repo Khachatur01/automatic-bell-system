@@ -1,5 +1,4 @@
 use embedded_sdmmc::{DirEntry, Error, Mode, SdCard, ShortFileName, TimeSource, Timestamp, VolumeIdx};
-use embedded_sdmmc::filesystem::ToShortFileName;
 use esp_idf_svc::hal::delay::FreeRtos;
 use esp_idf_svc::hal::gpio::OutputPin;
 use esp_idf_svc::hal::peripheral::Peripheral;

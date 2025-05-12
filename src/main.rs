@@ -9,7 +9,6 @@ mod security;
 use crate::schedule_system::ScheduleSystem;
 use esp_idf_svc::hal::prelude::Peripherals;
 use http_server::http_server::HttpServer;
-use interface::clock::ReadClock;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;

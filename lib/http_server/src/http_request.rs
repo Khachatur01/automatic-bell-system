@@ -5,7 +5,7 @@ use serde::de::{DeserializeOwned, Error as _};
 use serde::{Serialize};
 use crate::to_response_data::ToResponseData;
 
-fn status_response<'a, C, Data>(mut request: Request<C>,
+fn status_response<'a, C, Data>(request: Request<C>,
                                 status: u16,
                                 data: &Data,
                                 message: &'a str,
@@ -13,6 +13,13 @@ fn status_response<'a, C, Data>(mut request: Request<C>,
 where C: Connection,
       Data: ToResponseData {
 
+    let cors_headers = &[
+        ("Access-Control-Allow-Origin", "*"),
+        ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH"),
+        ("Access-Control-Allow-Headers", "Content-Type"),
+    ];
+
+    let headers = &[headers, cors_headers].concat();
     let mut response: Response<C> = request
         .into_response(status, Some(message), headers)
         .map_err(RequestError::Connection)?;

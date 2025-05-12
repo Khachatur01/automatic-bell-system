@@ -1,10 +1,8 @@
 use esp_idf_svc::http::server::{Configuration, EspHttpConnection, EspHttpServer, Request};
 use esp_idf_svc::http::Method;
 use esp_idf_svc::io::EspIOError;
-use esp_idf_svc::sys::{EspError, ESP_ERR_INVALID_ARG};
-use std::fmt::Debug;
-use crate::http_request;
-use crate::http_request::{RequestError, RequestResult};
+use esp_idf_svc::sys::{EspError};
+use crate::http_request::{IntoResponse, RequestError, RequestResult};
 
 pub struct HttpServer<'a> {
     server: EspHttpServer<'a>,
@@ -17,6 +15,11 @@ impl<'a> HttpServer<'a> {
         configuration.stack_size = 8 * 1024;
 
         let mut server: EspHttpServer = EspHttpServer::new(&configuration)?;
+
+        server.fn_handler::<RequestError<EspIOError>, _>("/*?", Method::Options, move |esp_http_request: Request<&mut EspHttpConnection>| -> RequestResult<(), EspIOError> {
+            println!("Options");
+            esp_http_request.ok(&"Returning OK response on OPTIONS request").map(|_| ())
+        })?;
 
         Ok(Self { server })
     }

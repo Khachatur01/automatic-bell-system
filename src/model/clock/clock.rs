@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use serde::{Deserialize, Serialize};
 use http_server::to_response_data::ToResponseData;
 

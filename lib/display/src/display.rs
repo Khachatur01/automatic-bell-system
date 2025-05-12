@@ -12,7 +12,6 @@ use embedded_graphics::mono_font::ascii::FONT_9X18_BOLD;
 use embedded_graphics::mono_font::MonoTextStyleBuilder;
 use embedded_graphics::pixelcolor::BinaryColor;
 use embedded_graphics::text::{Baseline, Text};
-use log::log;
 
 type I2cSharedProxy<'a> = I2cProxy<'a, Mutex<I2cDriver<'a>>>;
 type Driver<'a> = Ssd1306<I2CInterface<I2cSharedProxy<'a>>, DisplaySize128x32, BufferedGraphicsMode<DisplaySize128x32>>;
