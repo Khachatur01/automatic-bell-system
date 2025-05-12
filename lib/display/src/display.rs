@@ -25,7 +25,7 @@ impl<'a> Display<'a> {
         let mut display_driver: Driver = Ssd1306::new(
             I2CDisplayInterface::new(i2c_shared_proxy),
             DisplaySize128x32,
-            DisplayRotation::Rotate0,
+            DisplayRotation::Rotate180,
         ).into_buffered_graphics_mode();
 
         log::info!("Initializing display driver...");

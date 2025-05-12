@@ -1,6 +1,7 @@
 use crate::PathParseError;
 use crate::PathParseError::{EmptyPath, PathShouldBeAbsolute, PathShouldEndWithFilename};
 
+#[derive(Debug)]
 pub struct FilePath {
     pub directories_path: Vec<String>,
     pub filename: String,

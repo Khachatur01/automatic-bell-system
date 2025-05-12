@@ -268,10 +268,20 @@ impl ScheduleSystem {
 /* disk */
 impl ScheduleSystem {
     pub fn read_from_file(&self, path: &FilePath) -> ScheduleSystemResult<Vec<u8>> {
+        println!("Locking disk for read...");
         self.disk
             .lock()
             .map_err(|_| ScheduleSystemError::MutexLockError)?
             .read_from_file(path)
+            .map_err(ScheduleSystemError::DiskError)
+    }
+
+    pub fn read_from_file_bytes<OnRead: FnMut(&[u8])>(&self, path: &FilePath, bytes: usize, on_read: OnRead) -> ScheduleSystemResult<()> {
+        println!("Locking disk for read...");
+        self.disk
+            .lock()
+            .map_err(|_| ScheduleSystemError::MutexLockError)?
+            .read_from_file_bytes(path, bytes, on_read)
             .map_err(ScheduleSystemError::DiskError)
     }
 

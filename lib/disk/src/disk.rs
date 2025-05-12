@@ -37,7 +37,8 @@ impl TimeSource for SdMmcClock {
 }
 
 pub struct Disk<'spi> {
-    volume_manager: VolumeManager<'spi>
+    volume_manager: VolumeManager<'spi>,
+    // volume: Volume<'spi, 'vol>
 }
 
 impl<'spi> Disk<'spi> {
@@ -45,15 +46,19 @@ impl<'spi> Disk<'spi> {
         let mut spi_config = SpiConfig::new();
         spi_config.duplex = Duplex::Full;
 
-        let spi_device_driver: SpiDeviceDriver<SpiDriver> = SpiDeviceDriver::new(spi_driver, Some(cs), &spi_config)?;
-        let sdcard: SdCard<SpiDeviceDriver<SpiDriver>, FreeRtos> = SdCard::new(spi_device_driver, FreeRtos);
+        let spi_device_driver: SpiDeviceDriver<'spi, SpiDriver<'spi>> = SpiDeviceDriver::new(spi_driver, Some(cs), &spi_config)?;
+        let sdcard: BlockDevice<'spi> = SdCard::new(spi_device_driver, FreeRtos);
 
-        Ok(Self { volume_manager: VolumeManager::new_with_limits(sdcard, SdMmcClock, 5000) })
+        let volume_manager = VolumeManager::new_with_limits(sdcard, SdMmcClock, 5000);
+        // let volume: Volume<'spi, 'vol> = volume_manager.open_volume(VolumeIdx(0)).unwrap();
+
+        Ok(Self { volume_manager })
     }
 
     pub fn list_dir(&mut self, path: &DirectoryPath) -> DiskResult<Vec<String>> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         for dir in &path.directories_path {
             directory.change_dir(dir.as_str())?;
@@ -80,6 +85,7 @@ impl<'spi> Disk<'spi> {
     pub fn list_files(&mut self, path: &DirectoryPath) -> DiskResult<Vec<String>> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         for dir in &path.directories_path {
             directory.change_dir(dir.as_str())?;
@@ -101,6 +107,7 @@ impl<'spi> Disk<'spi> {
     pub fn make_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         for dir in &path.directories_path {
             if let Err(error) = directory.make_dir_in_dir(dir.as_str()) {
@@ -119,6 +126,7 @@ impl<'spi> Disk<'spi> {
     pub fn remove_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         let length: usize = path.directories_path.len();
 
@@ -136,6 +144,7 @@ impl<'spi> Disk<'spi> {
     pub fn clear_dir(&mut self, path: &DirectoryPath) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         for dir in &path.directories_path {
             directory.change_dir(dir.as_str())?;
@@ -159,6 +168,7 @@ impl<'spi> Disk<'spi> {
     pub fn delete_file(&mut self, path: &FilePath) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         for dir in &path.directories_path {
             directory.change_dir(dir.as_str())?;
@@ -170,28 +180,63 @@ impl<'spi> Disk<'spi> {
     }
 }
 
-impl<'a> ReadDisk for Disk<'a> {
+impl<'spi> ReadDisk for Disk<'spi> {
     fn read_from_file(&mut self, path: &FilePath) -> DiskResult<Vec<u8>> {
+        println!("Opening volume 0...");
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
+        println!("Volume 0 opened!");
 
         for dir in &path.directories_path {
+            println!("Directory: {}", dir);
             directory.change_dir(dir.as_str())?;
         }
 
         let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadOnly)?;
 
+        println!("File opened");
+
         let mut buffer: Vec<u8> = vec![0; file.length() as usize];
         file.read(buffer.as_mut_slice())?;
 
+        println!("File read");
+
         Ok(buffer)
+    }
+    fn read_from_file_bytes<OnRead: FnMut(&[u8])>(&mut self, path: &FilePath, bytes: usize, mut on_read: OnRead) -> DiskResult<()> {
+        println!("Opening volume 0...");
+        let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
+        let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
+        println!("Volume 0 opened!");
+
+        for dir in &path.directories_path {
+            println!("Directory: {}", dir);
+            directory.change_dir(dir.as_str())?;
+        }
+
+        let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadOnly)?;
+
+        println!("File opened");
+
+        let mut buffer: Vec<u8> = vec![0; bytes];
+        while !file.is_eof() {
+            file.read(buffer.as_mut_slice())?;
+            on_read(buffer.as_slice());
+        }
+
+        println!("File read");
+
+        Ok(())
     }
 }
 
-impl<'a> WriteDisk for Disk<'a> {
+impl<'spi> WriteDisk for Disk<'spi> {
     fn write_to_file(&mut self, path: &FilePath, data_buffer: &[u8]) -> DiskResult<()> {
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
+        // let mut directory: Directory = self.volume.open_root_dir()?;
 
         for dir in &path.directories_path {
             directory.change_dir(dir.as_str())?;
