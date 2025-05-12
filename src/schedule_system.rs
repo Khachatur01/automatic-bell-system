@@ -75,10 +75,10 @@ impl ScheduleSystem {
         // let sdi = peripherals.pins.gpio21;
         // let cs = peripherals.pins.gpio5;
         let spi = peripherals.spi2;
-        let scl = peripherals.pins.gpio21;
+        let scl = peripherals.pins.gpio18;
         let sdo = peripherals.pins.gpio19;
-        let sdi = peripherals.pins.gpio18;
-        let cs = peripherals.pins.gpio5;
+        let sdi = peripherals.pins.gpio5;
+        let cs = peripherals.pins.gpio21;
 
         let driver_config: DriverConfig = DriverConfig::default();
         let spi_driver: SpiDriver = SpiDriver::new(spi, scl, sdo, Some(sdi), &driver_config)
@@ -191,11 +191,11 @@ impl ScheduleSystem {
             disk,
         };
 
-        // this.init_filesystem(output_pins_count)?;
-        // log::info!("File system initialized.");
-        //
-        // this.synchronize_alarms_from_disk()?;
-        // log::info!("Alarms are synchronized from disk.");
+        this.init_filesystem(output_pins_count)?;
+        log::info!("File system initialized.");
+        
+        this.synchronize_alarms_from_disk()?;
+        log::info!("Alarms are synchronized from disk.");
 
         thread::spawn(move || loop {
             let seconds: u64 = EspSystemTime.now().as_secs();
@@ -375,7 +375,7 @@ impl ScheduleSystem {
             .add_alarm(alarm_id.clone(), alarm.clone())
             .map_err(ScheduleSystemError::ClockError)?;
 
-        // self.write_alarm_to_disk(alarm_id, alarm)?;
+        self.write_alarm_to_disk(alarm_id, alarm)?;
 
         Ok(())
     }
