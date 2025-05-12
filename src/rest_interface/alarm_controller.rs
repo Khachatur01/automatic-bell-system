@@ -20,6 +20,12 @@ use crate::schedule_system::to_alarms_with_id::ToAlarmsWithId;
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
     http_server.add_handler(
+        "/api/v1/alarm/output_indices", Method::Get,
+        move |request| get_alarm_output_indices(request, &schedule_system_clone)
+    )?;
+
+    let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
+    http_server.add_handler(
         "/api/v1/alarm", Method::Get,
         move |request| get_alarm(request, &schedule_system_clone)
     )?;
@@ -49,6 +55,12 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
     )?;
 
     Ok(())
+}
+
+fn get_alarm_output_indices(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {
+    authenticate_request(&request)?;
+
+    request.ok(&schedule_system.alarm_output_indices().clone())
 }
 
 fn get_alarm(request: Request<&mut EspHttpConnection>, schedule_system: &Arc<ScheduleSystem>) -> RequestResult<(), EspIOError> {

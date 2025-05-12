@@ -42,7 +42,7 @@ pub struct ScheduleSystem {
     /* Clock is RwLock, because it requires immutable reference for reading time. */
     clock: BoxedRwLock<Clock<AlarmId>>,
     disk: BoxedMutex<Disk<'static>>,
-    // alarm_output_pins: AlarmOutputs<'static>,
+    alarm_output_indices: Vec<usize>,
 }
 
 impl ScheduleSystem {
@@ -51,8 +51,6 @@ impl ScheduleSystem {
         let i2c = peripherals.i2c0;
         let sda = peripherals.pins.gpio23;
         let scl = peripherals.pins.gpio22;
-        // let sda = peripherals.pins.gpio22;
-        // let scl = peripherals.pins.gpio23;
         let i2c_config = I2cConfig::default();
         let i2c_driver: I2cDriver = I2cDriver::new(i2c, sda, scl, &i2c_config).map_err(ScheduleSystemError::EspError)?;
 
@@ -62,11 +60,6 @@ impl ScheduleSystem {
         /* Init I2c bus */
 
         /* Init SPI driver */
-        // let spi = peripherals.spi2;
-        // let scl = peripherals.pins.gpio18;
-        // let sdo = peripherals.pins.gpio19;
-        // let sdi = peripherals.pins.gpio21;
-        // let cs = peripherals.pins.gpio5;
         let spi = peripherals.spi2;
         let scl = peripherals.pins.gpio18;
         let sdo = peripherals.pins.gpio19;
@@ -146,6 +139,8 @@ impl ScheduleSystem {
                 .map_err(ScheduleSystemError::EspError)?,
         ];
         let output_pins_count: usize = alarm_output_pins.len();
+        let alarm_output_indices: Vec<usize> = (0..output_pins_count).collect();
+
         log::info!("Alarm outputs initialized. Total count is {output_pins_count}.");
 
         /* clock */
@@ -182,7 +177,7 @@ impl ScheduleSystem {
             access_point,
             clock,
             disk,
-            // alarm_output_pins
+            alarm_output_indices
         };
 
         this.init_filesystem(output_pins_count)?;
@@ -238,6 +233,12 @@ impl ScheduleSystem {
             alarm_id.output_index, alarm_id.identifier, date_time
         );
         let _ = output_pin_driver.set_low();
+    }
+}
+
+impl ScheduleSystem {
+    pub fn alarm_output_indices(&self) -> &Vec<usize> {
+        &self.alarm_output_indices
     }
 }
 
