@@ -17,7 +17,6 @@ impl<'a> HttpServer<'a> {
         let mut server: EspHttpServer = EspHttpServer::new(&configuration)?;
 
         server.fn_handler::<RequestError<EspIOError>, _>("/*?", Method::Options, move |esp_http_request: Request<&mut EspHttpConnection>| -> RequestResult<(), EspIOError> {
-            println!("Options");
             esp_http_request.ok(&"Returning OK response on OPTIONS request").map(|_| ())
         })?;
 

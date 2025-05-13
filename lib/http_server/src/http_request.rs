@@ -16,7 +16,7 @@ where C: Connection,
     let cors_headers = &[
         ("Access-Control-Allow-Origin", "*"),
         ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH"),
-        ("Access-Control-Allow-Headers", "Content-Type"),
+        ("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Token, Access-Control-Request-Method, Access-Control-Request-Headers"),
     ];
 
     let headers = &[headers, cors_headers].concat();

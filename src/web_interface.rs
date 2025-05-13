@@ -50,7 +50,7 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
 
             ("Access-Control-Allow-Origin", "*"),
             ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH"),
-            ("Access-Control-Allow-Headers", "Content-Type"),
+            ("Access-Control-Allow-Headers", "Access-Control-Allow-Headers, Origin,Accept, X-Requested-With, Content-Type, Access-Token, Access-Control-Request-Method, Access-Control-Request-Headers"),
         ];
 
         let mut response = request
