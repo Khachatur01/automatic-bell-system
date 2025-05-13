@@ -5,7 +5,9 @@ use http_server::http_request::{IntoResponse, RequestError};
 use http_server::http_server::HttpServer;
 use std::sync::Arc;
 use esp_idf_svc::http::server::Response;
-use esp_idf_svc::io::Write;
+use esp_idf_svc::io::{EspIOError, Write};
+use mime::Mime;
+use mime_guess::MimeGuess;
 use crate::constant::{SYSTEM_DIR, WEB_UI_DIR};
 
 pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>) -> Result<(), EspError> {
@@ -14,7 +16,19 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
     let schedule_system_clone: Arc<ScheduleSystem> = Arc::clone(&schedule_system);
 
     http_server.add_handler("/*?", Method::Get, move |request| {
-        let filepath: String = match request.uri() {
+        let filepath: &str =
+            match request.uri().rsplit_once(".") {
+                None => "/",
+                Some((_, extension)) => {
+                    if extension.contains("/") {
+                        "/"
+                    } else {
+                        request.uri()
+                    }
+                }
+            };
+
+        let filepath: String = match filepath {
             "/" => String::from("/index.htm"),
             rest => String::from(rest),
         };
@@ -24,39 +38,40 @@ pub fn serve(http_server: &mut HttpServer, schedule_system: Arc<ScheduleSystem>)
         };
         println!("{:?}", path);
 
-        // let file_read_result = schedule_system_clone.read_from_file(&path);
-        // 
-        // let Ok(content) = file_read_result else {
-        //     let error = file_read_result.err().unwrap();
-        // 
-        //     println!("Can't read from file |{ui_files_location}{filepath}|. {error}");
-        //     return request.not_found(&format!("Can't read from file |{ui_files_location}{filepath}|. {error}"));
-        // };
-        // 
-        // let content: String = String::from_utf8_lossy(&content).to_string();
-        // println!("{:?}", content);
-        // 
-        // request.ok(&content)
+        let Some(guess) = mime_guess::from_path(filepath).first() else {
+            return request.bad_request(&format!("Can't build file |{ui_files_location}"))
+        };
 
-        let cors_headers = &[
+        let mime_type: String = format!("{}; charset=utf-8", guess);
+        println!("{:?}", mime_type);
+
+        let headers = &[
+            ("Content-Type", mime_type.as_str()),
+
             ("Access-Control-Allow-Origin", "*"),
             ("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH"),
             ("Access-Control-Allow-Headers", "Content-Type"),
         ];
 
         let mut response = request
-            .into_response(200, Some("Sending chunks"), cors_headers)
+            .into_response(200, Some("Sending chunks"), headers)
             .map_err(RequestError::Connection)?;
 
 
         let _ = schedule_system_clone.read_from_file_bytes(
             &path,
-            128,
-            |buffer| {
-                println!("buffer {:?}", buffer);
-                let _ = response
-                    .write(buffer)
-                    .map_err(RequestError::Connection);
+            64 * 1024,
+            |buffer, bytes_read| {
+                match response.write(&buffer[0..bytes_read]) {
+                    Ok(written_bytes) => {
+                        println!("{written_bytes} bytes written");
+                        Ok(())
+                    }
+                    Err(error) => {
+                        eprintln!("{error}");
+                        Err(())
+                    }
+                }
             });
 
         response.flush().map_err(RequestError::Connection)

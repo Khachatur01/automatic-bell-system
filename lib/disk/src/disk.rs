@@ -204,7 +204,7 @@ impl<'spi> ReadDisk for Disk<'spi> {
 
         Ok(buffer)
     }
-    fn read_from_file_bytes<OnRead: FnMut(&[u8])>(&mut self, path: &FilePath, bytes: usize, mut on_read: OnRead) -> DiskResult<()> {
+    fn read_from_file_bytes<OnRead: FnMut(&[u8], usize) -> Result<(), ()>>(&mut self, path: &FilePath, bytes: usize, mut on_read: OnRead) -> DiskResult<()> {
         println!("Opening volume 0...");
         let mut volume: Volume = self.volume_manager.open_volume(VolumeIdx(0))?;
         let mut directory: Directory = volume.open_root_dir()?;
@@ -212,21 +212,18 @@ impl<'spi> ReadDisk for Disk<'spi> {
         println!("Volume 0 opened!");
 
         for dir in &path.directories_path {
-            println!("Directory: {}", dir);
             directory.change_dir(dir.as_str())?;
         }
 
         let mut file: File = directory.open_file_in_dir(path.filename.as_str(), Mode::ReadOnly)?;
 
-        println!("File opened");
-
         let mut buffer: Vec<u8> = vec![0; bytes];
         while !file.is_eof() {
-            file.read(buffer.as_mut_slice())?;
-            on_read(buffer.as_slice());
+            let bytes_read: usize = file.read(buffer.as_mut_slice())?;
+            if let Err(()) = on_read(buffer.as_slice(), bytes_read) {
+                break;
+            }
         }
-
-        println!("File read");
 
         Ok(())
     }

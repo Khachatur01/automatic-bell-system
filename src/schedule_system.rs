@@ -220,18 +220,18 @@ impl ScheduleSystem {
             return;
         };
 
-        log::info!(
-            "Alarming: Output - {}, Id - {}, time - {}, impulse length - {}ms.",
-            alarm_id.output_index, alarm_id.identifier, date_time, alarm.impulse_length_millis
-        );
+        // log::info!(
+        //     "Alarming: Output - {}, Id - {}, time - {}, impulse length - {}ms.",
+        //     alarm_id.output_index, alarm_id.identifier, date_time, alarm.impulse_length_millis
+        // );
 
         let _ = output_pin_driver.set_high();
         thread::sleep(Duration::from_millis(alarm.impulse_length_millis));
 
-        log::info!(
-            "Stoping alarm: Output - {}, Id - {}, time - {}.",
-            alarm_id.output_index, alarm_id.identifier, date_time
-        );
+        // log::info!(
+        //     "Stoping alarm: Output - {}, Id - {}, time - {}.",
+        //     alarm_id.output_index, alarm_id.identifier, date_time
+        // );
         let _ = output_pin_driver.set_low();
     }
 }
@@ -276,7 +276,7 @@ impl ScheduleSystem {
             .map_err(ScheduleSystemError::DiskError)
     }
 
-    pub fn read_from_file_bytes<OnRead: FnMut(&[u8])>(&self, path: &FilePath, bytes: usize, on_read: OnRead) -> ScheduleSystemResult<()> {
+    pub fn read_from_file_bytes<OnRead: FnMut(&[u8], usize) -> Result<(), ()>>(&self, path: &FilePath, bytes: usize, on_read: OnRead) -> ScheduleSystemResult<()> {
         println!("Locking disk for read...");
         self.disk
             .lock()
